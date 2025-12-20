@@ -1,0 +1,86 @@
+---
+description: Game room dimensions and player positioning rules
+globs: ["**/game/**/*.ts", "**/index.html"]
+---
+
+# Game Room Dimensions & Positioning
+
+## Room Coordinate System
+
+The game uses a right-handed coordinate system:
+- **X axis**: Left (-) to Right (+)
+- **Y axis**: Down (-) to Up (+)
+- **Z axis**: The axis along which players face each other
+
+## Default Room Bounds
+
+```
+Room: 14 × 10 × 16 units
+  X: -7 to +7 (width: 14)
+  Y: -5 to +5 (height: 10)  
+  Z: -8 to +8 (depth: 16)
+```
+
+## Player Positioning
+
+Players are positioned on **opposite ends of the Z axis**:
+
+### Player 1
+- **Camera**: Outside room at `z = maxZ + 8` (positive Z, looking toward negative Z)
+- **Hand**: Inside room at `z = maxZ - 3` (positive Z side)
+- **Blocks spawn**: Around `z = maxZ - 4` (positive Z side, slightly toward center from hand)
+- **X-axis mirroring**: YES - left hand movement = left on screen
+
+### Player 2
+- **Camera**: Outside room at `z = minZ - 8` (negative Z, looking toward positive Z)
+- **Hand**: Inside room at `z = minZ + 3` (negative Z side)
+- **Blocks spawn**: Around `z = minZ + 4` (negative Z side, slightly toward center from hand)
+- **X-axis mirroring**: NO - view is already flipped from opposite perspective
+
+## Visual Representation
+
+```
+         Player 2 Camera
+              ↓
+    z = -16  [📷]
+              |
+    z = -8   ┌─────────────────┐  ← Room boundary (minZ)
+              │                 │
+    z = -5   │  [P2 blocks]    │  ← Player 2's blocks
+    z = -5   │  [P2 hand] ✋   │  ← Player 2's hand
+              │                 │
+    z = 0    │ ─ ─ ─ ─ ─ ─ ─ ─ │  ← Room center
+              │                 │
+    z = +5   │  [P1 hand] ✋   │  ← Player 1's hand
+    z = +4   │  [P1 blocks]    │  ← Player 1's blocks
+              │                 │
+    z = +8   └─────────────────┘  ← Room boundary (maxZ)
+              |
+    z = +16  [📷]
+              ↑
+         Player 1 Camera
+```
+
+## Key Rules
+
+1. **Blocks always spawn on the same Z side as the player's hand**
+   - This ensures "my blocks" appear near "my hand" from the player's perspective
+
+2. **Hand Z position must be between camera and block spawn area**
+   - Camera → Hand → Blocks → Room center → Opponent's blocks
+
+3. **X-axis mapping depends on viewing direction**
+   - Player looking from +Z: mirror X (webcam is mirrored, so un-mirror for natural feel)
+   - Player looking from -Z: don't mirror (opposite view already flips X)
+
+4. **Block positions are clamped to room bounds**
+   - Account for block half-size (0.5 units) to prevent blocks from clipping through walls
+   - Clamped position: `min + 0.5` to `max - 0.5` for each axis
+
+## Code References
+
+- Room bounds: `server/src/game/types.ts` → `DEFAULT_ROOM`, `RoomBounds`
+- Block spawn: `server/src/game/types.ts` → `getPlayerSpawnArea()`
+- Position clamping: `server/src/game/types.ts` → `clampToRoom()`
+- Camera setup: `index.html` → `setupCameraForPlayer()`
+- Hand mapping: `index.html` → `landmarkTo3D()`

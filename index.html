@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hand-Controlled Blocks - Multiplayer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { overflow: hidden; background: #1a1a2e; }
+        #container { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; }
+        
+        #webcam-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 160px;
+            height: 120px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid #444;
+            z-index: 100;
+        }
+        
+        #webcam {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+        
+        #webcam-bounds {
+            position: absolute;
+            top: 5%;
+            left: 5%;
+            width: 90%;
+            height: 90%;
+            border: 2px solid #00ff88;
+            border-radius: 4px;
+            pointer-events: none;
+            box-sizing: border-box;
+        }
+        
+        #status {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: #888;
+            font-family: system-ui, sans-serif;
+            font-size: 14px;
+            z-index: 100;
+        }
+        
+        #connection-status {
+            position: fixed;
+            top: 50px;
+            left: 20px;
+            color: #666;
+            font-family: system-ui, sans-serif;
+            font-size: 12px;
+            z-index: 100;
+        }
+        
+        #player-info {
+            position: fixed;
+            top: 70px;
+            left: 20px;
+            color: #888;
+            font-family: system-ui, sans-serif;
+            font-size: 12px;
+            z-index: 100;
+        }
+        
+        #fallback {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: #1a1a2e;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            color: #fff;
+            font-family: system-ui, sans-serif;
+            text-align: center;
+            padding: 40px;
+        }
+        
+        #fallback.hidden { display: none; }
+        #fallback h1 { font-size: 24px; margin-bottom: 20px; }
+        #fallback p { color: #888; max-width: 400px; line-height: 1.6; }
+        
+        #server-config {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #252540;
+            padding: 30px;
+            border-radius: 12px;
+            z-index: 1001;
+            font-family: system-ui, sans-serif;
+            color: #fff;
+        }
+        
+        #server-config.hidden { display: none; }
+        #server-config h2 { margin-bottom: 15px; font-size: 18px; }
+        #server-config input {
+            width: 300px;
+            padding: 10px;
+            border: 1px solid #444;
+            border-radius: 6px;
+            background: #1a1a2e;
+            color: #fff;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+        #server-config button {
+            width: 100%;
+            padding: 10px;
+            background: #4a9eff;
+            border: none;
+            border-radius: 6px;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        #server-config button:hover { background: #3a8eef; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js" crossorigin="anonymous"></script>
+</head>
+<body>
+    <div id="server-config">
+        <h2>Connect to Game Server</h2>
+        <input type="text" id="server-url" placeholder="ws://localhost:3001" value="ws://localhost:3001">
+        <button id="connect-btn">Connect</button>
+    </div>
+
+    <div id="fallback" class="hidden">
+        <h1>Camera Access Required</h1>
+        <p>Allow camera access to control blocks with your hands. Pinch (thumb + index finger) to grab and move blocks.</p>
+    </div>
+    
+    <div id="container"></div>
+    
+    <div id="webcam-container">
+        <video id="webcam" autoplay playsinline></video>
+        <div id="webcam-bounds"></div>
+    </div>
+    
+    <div id="status">Connecting...</div>
+    <div id="connection-status">Server: disconnected</div>
+    <div id="player-info"></div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.158.0/build/three.module.js"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // ============ MULTIPLAYER STATE ============
+        let ws = null;
+        let playerId = null;
+        let playerNumber = null;
+        let opponentConnected = false;
+        const myBlockIds = new Set();
+        
+        // Room bounds (will be set by server)
+        let room = null;
+        
+        // ============ SCENE ============
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a2e);
+        
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 3, 14);
+        camera.lookAt(0, -1, 0);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.getElementById('container').appendChild(renderer.domElement);
+        
+        // Simple lighting
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(5, 10, 7);
+        scene.add(dirLight);
+        
+        // ============ ROOM WIREFRAME ============
+        let roomWireframe = null;
+        const CAMERA_MARGIN = 0.05;
+        
+        function createRoomWireframe(roomBounds) {
+            // Remove old wireframe if exists
+            if (roomWireframe) {
+                scene.remove(roomWireframe);
+            }
+            
+            const { minX, maxX, minY, maxY, minZ, maxZ } = roomBounds;
+            
+            // Create wireframe box for the room
+            const width = maxX - minX;
+            const height = maxY - minY;
+            const depth = maxZ - minZ;
+            
+            const geometry = new THREE.BoxGeometry(width, height, depth);
+            const edges = new THREE.EdgesGeometry(geometry);
+            const material = new THREE.LineBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.4 });
+            roomWireframe = new THREE.LineSegments(edges, material);
+            
+            // Center the wireframe
+            roomWireframe.position.set(
+                (minX + maxX) / 2,
+                (minY + maxY) / 2,
+                (minZ + maxZ) / 2
+            );
+            
+            scene.add(roomWireframe);
+            
+            // Add floor grid inside the room
+            const floorGrid = new THREE.GridHelper(Math.max(width, depth), 20, 0x444466, 0x333344);
+            floorGrid.position.y = minY;
+            scene.add(floorGrid);
+        }
+        
+        function setupCameraForPlayer(pNumber, roomBounds) {
+            // Player 1 looks from negative Z, Player 2 from positive Z
+            const { minZ, maxZ } = roomBounds;
+            const roomCenterZ = (minZ + maxZ) / 2;
+            
+            if (pNumber === 1) {
+                // Player 1: looking from negative Z side into the room
+                camera.position.set(0, 3, maxZ + 8);
+                camera.lookAt(0, 0, roomCenterZ);
+            } else {
+                // Player 2: looking from positive Z side into the room
+                camera.position.set(0, 3, minZ - 8);
+                camera.lookAt(0, 0, roomCenterZ);
+            }
+        }
+        
+        // Depth indicator line (from hand to floor)
+        const depthLineMat = new THREE.LineBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.6 });
+        const depthLineGeo = new THREE.BufferGeometry();
+        depthLineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+        const depthLine = new THREE.Line(depthLineGeo, depthLineMat);
+        depthLine.visible = false;
+        scene.add(depthLine);
+        
+        // Hand shadow on floor
+        const shadowGeo = new THREE.CircleGeometry(0.3, 16);
+        const shadowMat = new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.4 });
+        const handShadow = new THREE.Mesh(shadowGeo, shadowMat);
+        handShadow.rotation.x = -Math.PI / 2;
+        handShadow.visible = false;
+        scene.add(handShadow);
+
+        // ============ BLOCKS ============
+        const blocks = new Map(); // blockId -> mesh
+        
+        function createBlock(blockData) {
+            const geometry = new THREE.BoxGeometry(1, 1, 1);
+            const isMyBlock = blockData.ownerId === playerId;
+            
+            const material = new THREE.MeshStandardMaterial({
+                color: blockData.color,
+                transparent: true,
+                opacity: isMyBlock ? 0.85 : 0.5, // Opponent blocks more transparent
+            });
+            
+            const block = new THREE.Mesh(geometry, material);
+            block.position.set(blockData.position.x, blockData.position.y, blockData.position.z);
+            block.userData = { 
+                id: blockData.id,
+                ownerId: blockData.ownerId,
+                baseY: blockData.position.y, 
+                phase: Math.random() * Math.PI * 2,
+                isGrabbed: false
+            };
+            
+            scene.add(block);
+            blocks.set(blockData.id, block);
+            
+            if (isMyBlock) {
+                myBlockIds.add(blockData.id);
+            }
+            
+            return block;
+        }
+        
+        function removeBlock(blockId) {
+            const block = blocks.get(blockId);
+            if (block) {
+                scene.remove(block);
+                blocks.delete(blockId);
+                myBlockIds.delete(blockId);
+            }
+        }
+        
+        function updateBlockPosition(blockId, position) {
+            const block = blocks.get(blockId);
+            if (block) {
+                block.position.set(position.x, position.y, position.z);
+                block.userData.baseY = position.y;
+            }
+        }
+
+        // ============ HAND VISUALIZATION ============
+        const handJoints = [];
+        const handBones = [];
+        
+        const jointMat = new THREE.MeshBasicMaterial({ color: 0x66aaff, transparent: true, opacity: 0.7 });
+        const boneMat = new THREE.MeshBasicMaterial({ color: 0x4488cc, transparent: true, opacity: 0.5 });
+        
+        for (let i = 0; i < 21; i++) {
+            const size = i === 0 ? 0.12 : (i % 4 === 0 ? 0.1 : 0.07);
+            const joint = new THREE.Mesh(new THREE.SphereGeometry(size, 8, 8), jointMat.clone());
+            joint.visible = false;
+            scene.add(joint);
+            handJoints.push(joint);
+        }
+        
+        const boneConns = [
+            [0,1],[1,2],[2,3],[3,4],
+            [0,5],[5,6],[6,7],[7,8],
+            [0,9],[9,10],[10,11],[11,12],
+            [0,13],[13,14],[14,15],[15,16],
+            [0,17],[17,18],[18,19],[19,20],
+            [5,9],[9,13],[13,17]
+        ];
+        
+        for (let i = 0; i < boneConns.length; i++) {
+            const bone = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1, 6), boneMat.clone());
+            bone.visible = false;
+            scene.add(bone);
+            handBones.push(bone);
+        }
+        
+        const COLOR_NORMAL = 0x66aaff;
+        const COLOR_WARNING = 0xffaa00;
+        const COLOR_OUTSIDE = 0xff4444;
+        
+        let handState = 'normal';
+        
+        function landmarkTo3D(lm) {
+            if (!room) return new THREE.Vector3(0, 0, 0);
+            
+            const normX = Math.max(0, Math.min(1, (lm.x - CAMERA_MARGIN) / (1 - 2 * CAMERA_MARGIN)));
+            const normY = Math.max(0, Math.min(1, (lm.y - CAMERA_MARGIN) / (1 - 2 * CAMERA_MARGIN)));
+            
+            // Map to room X/Y bounds
+            // Player 1 (looking from +Z): mirror X so left hand = left on screen
+            // Player 2 (looking from -Z): don't mirror X (view is already flipped)
+            const mappedX = playerNumber === 1 ? (1 - normX) : normX;
+            const x = mappedX * (room.maxX - room.minX) + room.minX;
+            const y = (1 - normY) * (room.maxY - room.minY) + room.minY;
+            
+            // Z position depends on player number - hand is at their side of the room
+            // Must match the spawn side: P1 blocks at maxZ-4, P2 blocks at minZ+4
+            const handZ = playerNumber === 1 ? room.maxZ - 3 : room.minZ + 3;
+            
+            return new THREE.Vector3(x, y, handZ);
+        }
+        
+        function getHandState(landmarks) {
+            const wrist = landmarks[0];
+            const edgeThreshold = 0.03;
+            
+            const nearLeft = wrist.x < CAMERA_MARGIN + edgeThreshold;
+            const nearRight = wrist.x > 1 - CAMERA_MARGIN - edgeThreshold;
+            const nearTop = wrist.y < CAMERA_MARGIN + edgeThreshold;
+            const nearBottom = wrist.y > 1 - CAMERA_MARGIN - edgeThreshold;
+            
+            const outsideLeft = wrist.x < CAMERA_MARGIN;
+            const outsideRight = wrist.x > 1 - CAMERA_MARGIN;
+            const outsideTop = wrist.y < CAMERA_MARGIN;
+            const outsideBottom = wrist.y > 1 - CAMERA_MARGIN;
+            
+            if (outsideLeft || outsideRight || outsideTop || outsideBottom) return 'outside';
+            if (nearLeft || nearRight || nearTop || nearBottom) return 'warning';
+            return 'normal';
+        }
+        
+        function setHandColor(color) {
+            handJoints.forEach(j => j.material.color.setHex(color));
+            handBones.forEach(b => b.material.color.setHex(color));
+        }
+        
+        function updateHand(landmarks) {
+            if (!landmarks) {
+                handJoints.forEach(j => j.visible = false);
+                handBones.forEach(b => b.visible = false);
+                depthLine.visible = false;
+                handShadow.visible = false;
+                handState = 'normal';
+                return;
+            }
+            
+            handState = getHandState(landmarks);
+            const color = handState === 'outside' ? COLOR_OUTSIDE : 
+                          handState === 'warning' ? COLOR_WARNING : COLOR_NORMAL;
+            setHandColor(color);
+            
+            const pos3D = landmarks.map(landmarkTo3D);
+            
+            for (let i = 0; i < 21; i++) {
+                handJoints[i].position.copy(pos3D[i]);
+                handJoints[i].visible = true;
+            }
+            
+            for (let i = 0; i < boneConns.length; i++) {
+                const [a, b] = boneConns[i];
+                const start = pos3D[a];
+                const end = pos3D[b];
+                const bone = handBones[i];
+                
+                bone.position.lerpVectors(start, end, 0.5);
+                bone.scale.y = start.distanceTo(end);
+                bone.lookAt(end);
+                bone.rotateX(Math.PI / 2);
+                bone.visible = true;
+            }
+            
+            const wristPos = pos3D[0];
+            const floorY = room ? room.minY : -5;
+            
+            const linePositions = depthLine.geometry.attributes.position.array;
+            linePositions[0] = wristPos.x;
+            linePositions[1] = wristPos.y;
+            linePositions[2] = wristPos.z;
+            linePositions[3] = wristPos.x;
+            linePositions[4] = floorY;
+            linePositions[5] = wristPos.z;
+            depthLine.geometry.attributes.position.needsUpdate = true;
+            depthLine.visible = true;
+            
+            handShadow.position.x = wristPos.x;
+            handShadow.position.z = wristPos.z;
+            const heightAboveFloor = wristPos.y - floorY;
+            const shadowScale = Math.max(0.3, 1.5 - heightAboveFloor * 0.1);
+            handShadow.scale.setScalar(shadowScale);
+            handShadow.material.opacity = Math.max(0.15, 0.5 - heightAboveFloor * 0.03);
+            handShadow.visible = true;
+        }
+
+        // ============ HIGHLIGHTS ============
+        const highlightGeo = new THREE.BoxGeometry(1.15, 1.15, 1.15);
+        const highlightEdges = new THREE.EdgesGeometry(highlightGeo);
+        const highlightMat = new THREE.LineBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.9 });
+        const highlight = new THREE.LineSegments(highlightEdges, highlightMat);
+        highlight.visible = false;
+        scene.add(highlight);
+        
+        const grabbedHighlightMat = new THREE.LineBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 1 });
+        const grabbedHighlight = new THREE.LineSegments(highlightEdges.clone(), grabbedHighlightMat);
+        grabbedHighlight.visible = false;
+        scene.add(grabbedHighlight);
+        
+        // Opponent grab highlight (different color)
+        const opponentGrabMat = new THREE.LineBasicMaterial({ color: 0xff6666, transparent: true, opacity: 0.7 });
+        const opponentGrabHighlight = new THREE.LineSegments(highlightEdges.clone(), opponentGrabMat);
+        opponentGrabHighlight.visible = false;
+        scene.add(opponentGrabHighlight);
+        
+        let reachableBlock = null;
+        
+        function updateHighlight(pinchPoint) {
+            if (!pinchPoint) {
+                highlight.visible = false;
+                reachableBlock = null;
+                return;
+            }
+            
+            let nearest = null;
+            let nearestDist = 3;
+            
+            // Only highlight MY blocks
+            for (const [blockId, block] of blocks) {
+                if (!myBlockIds.has(blockId)) continue;
+                
+                const dx = block.position.x - pinchPoint.x;
+                const dy = block.position.y - pinchPoint.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < nearestDist) {
+                    nearestDist = dist;
+                    nearest = block;
+                }
+            }
+            
+            reachableBlock = nearest;
+            
+            if (nearest) {
+                highlight.position.copy(nearest.position);
+                highlight.rotation.copy(nearest.rotation);
+                highlight.visible = true;
+            } else {
+                highlight.visible = false;
+            }
+        }
+
+        // ============ INTERACTION ============
+        let grabbedBlock = null;
+        let handLandmarks = null;
+        let lastSentPosition = null;
+        const SEND_THROTTLE = 50; // ms
+        let lastSendTime = 0;
+        
+        const THUMB_TIP = 4;
+        const INDEX_TIP = 8;
+        
+        function isPinching(landmarks) {
+            const dist = Math.hypot(
+                landmarks[THUMB_TIP].x - landmarks[INDEX_TIP].x,
+                landmarks[THUMB_TIP].y - landmarks[INDEX_TIP].y
+            );
+            return dist < 0.07;
+        }
+        
+        function getPinchPoint(landmarks) {
+            return landmarkTo3D({
+                x: (landmarks[THUMB_TIP].x + landmarks[INDEX_TIP].x) / 2,
+                y: (landmarks[THUMB_TIP].y + landmarks[INDEX_TIP].y) / 2,
+                z: 0
+            });
+        }
+        
+        function processInteraction() {
+            if (!handLandmarks || !playerId) {
+                if (grabbedBlock) {
+                    sendMessage({ type: 'block_release', blockId: grabbedBlock.userData.id });
+                    grabbedBlock = null;
+                }
+                updateHighlight(null);
+                return;
+            }
+            
+            const pinching = isPinching(handLandmarks);
+            const pinchPoint = getPinchPoint(handLandmarks);
+            
+            if (!grabbedBlock) {
+                updateHighlight(pinchPoint);
+            }
+            
+            if (pinching) {
+                if (!grabbedBlock && reachableBlock) {
+                    grabbedBlock = reachableBlock;
+                    highlight.visible = false;
+                    sendMessage({ type: 'block_grab', blockId: grabbedBlock.userData.id });
+                }
+                if (grabbedBlock) {
+                    grabbedBlock.position.x += (pinchPoint.x - grabbedBlock.position.x) * 0.25;
+                    grabbedBlock.position.y += (pinchPoint.y - grabbedBlock.position.y) * 0.25;
+                    grabbedBlock.userData.baseY = grabbedBlock.position.y;
+                    
+                    grabbedHighlight.position.copy(grabbedBlock.position);
+                    grabbedHighlight.rotation.copy(grabbedBlock.rotation);
+                    grabbedHighlight.visible = true;
+                    
+                    // Send position updates (throttled)
+                    const now = Date.now();
+                    if (now - lastSendTime > SEND_THROTTLE) {
+                        sendMessage({
+                            type: 'block_move',
+                            blockId: grabbedBlock.userData.id,
+                            position: {
+                                x: grabbedBlock.position.x,
+                                y: grabbedBlock.position.y,
+                                z: grabbedBlock.position.z
+                            }
+                        });
+                        lastSendTime = now;
+                    }
+                }
+            } else {
+                if (grabbedBlock) {
+                    sendMessage({ type: 'block_release', blockId: grabbedBlock.userData.id });
+                    grabbedBlock = null;
+                }
+                grabbedHighlight.visible = false;
+            }
+            
+            const stateText = handState === 'outside' ? ' (OUT OF BOUNDS)' : 
+                             handState === 'warning' ? ' (near edge)' : '';
+            const opponentText = opponentConnected ? '' : ' [waiting for opponent]';
+            updateStatus((pinching ? (grabbedBlock ? 'Grabbing' : 'Pinching') : (reachableBlock ? 'In reach' : 'Open')) + stateText + opponentText);
+        }
+
+        // ============ WEBSOCKET ============
+        function connectToServer(url) {
+            updateConnectionStatus('Connecting...');
+            
+            ws = new WebSocket(url);
+            
+            ws.onopen = () => {
+                updateConnectionStatus('Connected');
+                document.getElementById('server-config').classList.add('hidden');
+            };
+            
+            ws.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                handleServerMessage(message);
+            };
+            
+            ws.onclose = () => {
+                updateConnectionStatus('Disconnected');
+                playerId = null;
+                playerNumber = null;
+                opponentConnected = false;
+                // Clear blocks
+                for (const [id, block] of blocks) {
+                    scene.remove(block);
+                }
+                blocks.clear();
+                myBlockIds.clear();
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                updateConnectionStatus('Error');
+            };
+        }
+        
+        function sendMessage(message) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(message));
+            }
+        }
+        
+        function handleServerMessage(message) {
+            switch (message.type) {
+                case 'welcome':
+                    playerId = message.playerId;
+                    playerNumber = message.playerNumber;
+                    room = message.room;
+                    
+                    updatePlayerInfo(`Player ${playerNumber} (${playerId})`);
+                    
+                    // Setup room wireframe and camera
+                    createRoomWireframe(room);
+                    setupCameraForPlayer(playerNumber, room);
+                    
+                    // Update hand shadow position based on room
+                    handShadow.position.y = room.minY + 0.01;
+                    
+                    // Create all blocks from server state
+                    for (const blockData of message.blocks) {
+                        createBlock(blockData);
+                    }
+                    
+                    // Start hand tracking after receiving welcome
+                    initTracking();
+                    break;
+                    
+                case 'opponent_joined':
+                    opponentConnected = true;
+                    updateConnectionStatus('Connected - Opponent joined!');
+                    break;
+                    
+                case 'opponent_left':
+                    opponentConnected = false;
+                    updateConnectionStatus('Connected - Opponent left');
+                    // Remove opponent's blocks
+                    for (const [blockId, block] of blocks) {
+                        if (block.userData.ownerId !== playerId) {
+                            scene.remove(block);
+                            blocks.delete(blockId);
+                        }
+                    }
+                    break;
+                    
+                case 'block_grabbed':
+                    // Show opponent is grabbing a block
+                    const grabbedByOpponent = blocks.get(message.blockId);
+                    if (grabbedByOpponent) {
+                        grabbedByOpponent.userData.isGrabbed = true;
+                        opponentGrabHighlight.position.copy(grabbedByOpponent.position);
+                        opponentGrabHighlight.visible = true;
+                    }
+                    break;
+                    
+                case 'block_moved':
+                    // Update opponent's block position
+                    updateBlockPosition(message.blockId, message.position);
+                    const movedBlock = blocks.get(message.blockId);
+                    if (movedBlock && movedBlock.userData.isGrabbed) {
+                        opponentGrabHighlight.position.copy(movedBlock.position);
+                    }
+                    break;
+                    
+                case 'block_released':
+                    const releasedBlock = blocks.get(message.blockId);
+                    if (releasedBlock) {
+                        releasedBlock.userData.isGrabbed = false;
+                        opponentGrabHighlight.visible = false;
+                    }
+                    break;
+                    
+                case 'error':
+                    console.error('Server error:', message.message);
+                    updateStatus(`Error: ${message.message}`);
+                    break;
+            }
+        }
+        
+        function updateConnectionStatus(status) {
+            document.getElementById('connection-status').textContent = `Server: ${status}`;
+        }
+        
+        function updatePlayerInfo(info) {
+            document.getElementById('player-info').textContent = info;
+        }
+
+        // ============ HAND TRACKING ============
+        const video = document.getElementById('webcam');
+        
+        async function initTracking() {
+            try {
+                await waitForMediaPipe();
+                
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: 640, height: 480, facingMode: 'user' } 
+                });
+                video.srcObject = stream;
+                await video.play();
+                
+                const hands = new window.Hands({
+                    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${file}`
+                });
+                
+                hands.setOptions({
+                    maxNumHands: 1,
+                    modelComplexity: 1,
+                    minDetectionConfidence: 0.7,
+                    minTrackingConfidence: 0.5
+                });
+                
+                hands.onResults((results) => {
+                    if (results.multiHandLandmarks?.length > 0) {
+                        handLandmarks = results.multiHandLandmarks[0];
+                    } else {
+                        handLandmarks = null;
+                    }
+                    updateHand(handLandmarks);
+                    processInteraction();
+                });
+                
+                const cam = new window.Camera(video, {
+                    onFrame: async () => await hands.send({ image: video }),
+                    width: 640,
+                    height: 480
+                });
+                cam.start();
+                
+                document.getElementById('fallback').classList.add('hidden');
+                updateStatus('Ready - pinch to grab your blocks');
+                
+            } catch (err) {
+                console.error(err);
+                document.getElementById('fallback').classList.remove('hidden');
+                document.getElementById('status').textContent = 'Camera error';
+            }
+        }
+        
+        function waitForMediaPipe() {
+            return new Promise((resolve, reject) => {
+                let attempts = 0;
+                const check = () => {
+                    if (window.Hands && window.Camera) resolve();
+                    else if (attempts++ > 50) reject(new Error('MediaPipe failed'));
+                    else setTimeout(check, 100);
+                };
+                check();
+            });
+        }
+        
+        function updateStatus(text) {
+            document.getElementById('status').textContent = text;
+        }
+
+        // ============ ANIMATION ============
+        const clock = new THREE.Clock();
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            const t = clock.getElapsedTime();
+            
+            for (const [id, block] of blocks) {
+                if (block !== grabbedBlock && !block.userData.isGrabbed) {
+                    block.position.y = block.userData.baseY + Math.sin(t + block.userData.phase) * 0.15;
+                    block.rotation.y += 0.003;
+                }
+            }
+            
+            renderer.render(scene, camera);
+        }
+        
+        // ============ RESIZE ============
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // ============ START ============
+        document.getElementById('connect-btn').addEventListener('click', () => {
+            const url = document.getElementById('server-url').value;
+            connectToServer(url);
+        });
+        
+        // Also connect on Enter key
+        document.getElementById('server-url').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const url = document.getElementById('server-url').value;
+                connectToServer(url);
+            }
+        });
+        
+        animate();
+    </script>
+</body>
+</html>
