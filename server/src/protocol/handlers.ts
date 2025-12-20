@@ -37,6 +37,9 @@ export function handleMessage(
 
     case 'block_release':
       return handleBlockRelease(message.blockId, context, state);
+
+    case 'cannon_fire':
+      return handleCannonFire(message.cannonId, context, state);
   }
 }
 
@@ -82,22 +85,34 @@ function handleBlockMove(
     return { newState: state, responses: [] };
   }
 
-  const newState = state.moveBlock(blockId, position);
+  const { state: newState, pushedBlocks } = state.moveBlock(blockId, position);
 
-  return {
-    newState,
-    responses: [
-      {
-        target: 'opponent',
-        message: {
-          type: 'block_moved',
-          playerId: context.playerId,
-          blockId,
-          position,
-        },
+  const responses: MessageHandlerResult['responses'] = [
+    {
+      target: 'opponent',
+      message: {
+        type: 'block_moved',
+        playerId: context.playerId,
+        blockId,
+        position,
       },
-    ],
-  };
+    },
+  ];
+
+  // Broadcast pushed blocks to ALL players (including the mover)
+  for (const pushed of pushedBlocks) {
+    responses.push({
+      target: 'all',
+      message: {
+        type: 'block_moved',
+        playerId: context.playerId,
+        blockId: pushed.id,
+        position: pushed.position,
+      },
+    });
+  }
+
+  return { newState, responses };
 }
 
 function handleBlockRelease(
@@ -122,6 +137,32 @@ function handleBlockRelease(
           type: 'block_released',
           playerId: context.playerId,
           blockId,
+        },
+      },
+    ],
+  };
+}
+
+function handleCannonFire(
+  cannonId: string,
+  context: ConnectionContext,
+  state: GameState
+): MessageHandlerResult {
+  const { state: newState, projectile } = state.fireCannon(context.playerId, cannonId);
+
+  if (!projectile) {
+    // Fire failed (cooldown, not owned, etc.)
+    return { newState: state, responses: [] };
+  }
+
+  return {
+    newState,
+    responses: [
+      {
+        target: 'all',
+        message: {
+          type: 'projectile_spawned',
+          projectile,
         },
       },
     ],

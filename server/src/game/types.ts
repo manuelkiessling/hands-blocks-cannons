@@ -1,13 +1,56 @@
-import type { Block, Position } from '../protocol/messages.js';
+import { loadGameConfig } from '../config/gameConfig.js';
+import type { Block, Position, Projectile } from '../protocol/messages.js';
 
 export type PlayerId = string;
 export type BlockId = string;
+export type ProjectileId = string;
 export type PlayerNumber = 1 | 2;
+export type BlockType = 'regular' | 'cannon';
 
 export interface Player {
   readonly id: PlayerId;
   readonly number: PlayerNumber;
   readonly grabbedBlockId: BlockId | null;
+}
+
+// Load configuration from YAML
+const yamlConfig = loadGameConfig();
+
+/** Cannon auto-fire interval in milliseconds (0 = manual fire only) */
+export const CANNON_AUTO_FIRE_INTERVAL_MS = yamlConfig.cannon.autoFireInterval;
+
+/** Cannon fire cooldown in milliseconds */
+export const CANNON_COOLDOWN_MS = yamlConfig.cannon.cooldown;
+
+/** Whether cannons are indestructible (cannot be hit by projectiles) */
+export const CANNON_INDESTRUCTIBLE = yamlConfig.cannon.indestructible;
+
+/** Projectile speed (units per second) */
+export const PROJECTILE_SPEED = yamlConfig.projectile.speed;
+
+/** Projectile size (radius) */
+export const PROJECTILE_SIZE = yamlConfig.projectile.size;
+
+/** Block half size for collision detection */
+export const BLOCK_HALF_SIZE = yamlConfig.blocks.halfSize;
+
+/** Whether blocks push each other when they collide */
+export const BLOCK_COLLISION_ENABLED = yamlConfig.blocks.collision;
+
+/** Server tick rate in milliseconds */
+export const TICK_RATE_MS = yamlConfig.tickRate;
+
+/** Camera distance from room edge (units) */
+export const CAMERA_DISTANCE = yamlConfig.camera.distance;
+
+/** Wall grid configuration */
+export const WALL_GRID_CONFIG = yamlConfig.wallGrid;
+
+/** Info about a destroyed block (for explosion effects) */
+export interface DestroyedBlockInfo {
+  readonly blockId: string;
+  readonly position: Position;
+  readonly color: number;
 }
 
 /** The room/arena bounds - a 3D box that contains all gameplay */
@@ -25,18 +68,11 @@ export interface GameConfig {
   readonly room: RoomBounds;
 }
 
-/** Default room: 14 units wide (x), 10 units tall (y), 16 units deep (z) */
-export const DEFAULT_ROOM: RoomBounds = {
-  minX: -7,
-  maxX: 7,
-  minY: -5,
-  maxY: 5,
-  minZ: -8,
-  maxZ: 8,
-};
+/** Room bounds loaded from YAML config */
+export const DEFAULT_ROOM: RoomBounds = yamlConfig.room;
 
 export const DEFAULT_GAME_CONFIG: GameConfig = {
-  blocksPerPlayer: 5,
+  blocksPerPlayer: yamlConfig.blocks.perPlayer,
   room: DEFAULT_ROOM,
 };
 
@@ -49,13 +85,15 @@ export function clampToRoom(pos: Position, room: RoomBounds, blockHalfSize = 0.5
   };
 }
 
-/** Get spawn position for a player's blocks */
-export function getPlayerSpawnArea(playerNumber: PlayerNumber, room: RoomBounds): Position {
-  // Match block spawn to same side as the hand:
-  // Player 1 hand is at maxZ - 2, so blocks spawn around maxZ - 3 to maxZ - 5
-  // Player 2 hand is at minZ + 2, so blocks spawn around minZ + 3 to minZ + 5
-  const zOffset = playerNumber === 1 ? room.maxZ - 4 : room.minZ + 4;
-  return { x: 0, y: 0, z: zOffset };
+/**
+ * Get spawn Z position for a player's blocks.
+ * Blocks spawn at the very edge of the room on the player's side.
+ * Player 1 is at maxZ (close to screen), Player 2 is at minZ (far side).
+ */
+export function getPlayerSpawnZ(playerNumber: PlayerNumber, room: RoomBounds): number {
+  const blockHalfSize = 0.5;
+  // Spawn right at the edge of the room (accounting for block size)
+  return playerNumber === 1 ? room.maxZ - blockHalfSize : room.minZ + blockHalfSize;
 }
 
 export const BLOCK_COLORS = [
@@ -66,4 +104,10 @@ export const BLOCK_COLORS = [
   0xf59e0b, // Orange
 ];
 
-export type { Block, Position };
+/** Special color for cannon blocks */
+export const CANNON_COLOR = 0xff3366; // Bright red-pink
+
+/** Projectile color (matches cannon) */
+export const PROJECTILE_COLOR = 0xffff00; // Bright yellow
+
+export type { Block, Position, Projectile };

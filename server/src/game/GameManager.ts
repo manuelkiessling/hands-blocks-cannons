@@ -8,7 +8,14 @@ import {
 import type { ServerMessage } from '../protocol/messages.js';
 import { logger } from '../utils/logger.js';
 import { GameState } from './GameState.js';
-import type { PlayerId } from './types.js';
+import {
+  CAMERA_DISTANCE,
+  CANNON_AUTO_FIRE_INTERVAL_MS,
+  PROJECTILE_SIZE,
+  type PlayerId,
+  TICK_RATE_MS,
+  WALL_GRID_CONFIG,
+} from './types.js';
 
 interface PlayerConnection {
   ws: WebSocket;
@@ -23,11 +30,116 @@ export class GameManager {
   private state: GameState;
   private readonly connections: Map<WebSocket, PlayerConnection>;
   private nextPlayerId: number;
+  private tickInterval: ReturnType<typeof setInterval> | null = null;
+  private lastTickTime: number = Date.now();
+  private lastAutoFireTime: number = Date.now();
 
   constructor() {
     this.state = GameState.create();
     this.connections = new Map();
     this.nextPlayerId = 1;
+    this.startGameLoop();
+  }
+
+  private startGameLoop(): void {
+    this.lastTickTime = Date.now();
+    this.lastAutoFireTime = Date.now();
+    this.tickInterval = setInterval(() => this.tick(), TICK_RATE_MS);
+    logger.info('Game loop started', {
+      tickRateMs: TICK_RATE_MS,
+      autoFireIntervalMs: CANNON_AUTO_FIRE_INTERVAL_MS,
+    });
+  }
+
+  private tick(): void {
+    const now = Date.now();
+    const deltaTime = (now - this.lastTickTime) / 1000; // Convert to seconds
+    this.lastTickTime = now;
+
+    // Auto-fire cannons if enabled
+    if (CANNON_AUTO_FIRE_INTERVAL_MS > 0) {
+      if (now - this.lastAutoFireTime >= CANNON_AUTO_FIRE_INTERVAL_MS) {
+        this.autoFireAllCannons();
+        this.lastAutoFireTime = now;
+      }
+    }
+
+    // Update projectiles and check for collisions
+    if (this.state.projectiles.size > 0) {
+      const {
+        state: newState,
+        destroyedProjectileIds,
+        destroyedBlocks,
+        wallHits,
+      } = this.state.updateProjectiles(deltaTime);
+      this.state = newState;
+
+      // Notify clients of destroyed projectiles
+      for (const projectileId of destroyedProjectileIds) {
+        this.broadcastToAll({
+          type: 'projectile_destroyed',
+          projectileId,
+        });
+      }
+
+      // Notify clients of destroyed blocks (for explosion effects)
+      for (const blockInfo of destroyedBlocks) {
+        logger.info('Block destroyed by projectile', { blockId: blockInfo.blockId });
+        this.broadcastToAll({
+          type: 'block_destroyed',
+          blockId: blockInfo.blockId,
+          position: blockInfo.position,
+          color: blockInfo.color,
+        });
+      }
+
+      // Notify clients of wall hits (for grid visualization)
+      if (WALL_GRID_CONFIG.enabled) {
+        for (const wallHit of wallHits) {
+          this.broadcastToAll({
+            type: 'wall_hit',
+            position: wallHit.position,
+            wallSide: wallHit.wallSide,
+          });
+        }
+      }
+
+      // Periodically send projectile positions (every tick is fine for smooth movement)
+      if (this.state.projectiles.size > 0) {
+        this.broadcastToAll({
+          type: 'projectiles_update',
+          projectiles: this.state.getProjectilesArray(),
+        });
+      }
+    }
+  }
+
+  /**
+   * Auto-fire all cannons for all connected players
+   */
+  private autoFireAllCannons(): void {
+    // Find all cannon blocks and fire them
+    for (const block of this.state.blocks.values()) {
+      if (block.blockType === 'cannon') {
+        const { state: newState, projectile } = this.state.fireCannonAuto(block.id);
+        if (projectile) {
+          this.state = newState;
+          // Notify all clients of the new projectile
+          this.broadcastToAll({
+            type: 'projectile_spawned',
+            projectile,
+          });
+        }
+      }
+    }
+  }
+
+  stop(): void {
+    if (this.tickInterval) {
+      clearInterval(this.tickInterval);
+      this.tickInterval = null;
+      logger.info('Game loop stopped');
+    }
   }
 
   handleConnection(ws: WebSocket): void {
@@ -59,7 +171,11 @@ export class GameManager {
       playerId,
       playerNumber,
       blocks: this.state.getBlocksArray(),
+      projectiles: this.state.getProjectilesArray(),
       room: this.state.config.room,
+      cameraDistance: CAMERA_DISTANCE,
+      wallGrid: WALL_GRID_CONFIG,
+      projectileSize: PROJECTILE_SIZE,
     });
 
     // Notify other player if exists

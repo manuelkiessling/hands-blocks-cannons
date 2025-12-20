@@ -139,7 +139,7 @@
 
     <div id="fallback" class="hidden">
         <h1>Camera Access Required</h1>
-        <p>Allow camera access to control blocks with your hands. Pinch (thumb + index finger) to grab and move blocks.</p>
+        <p>Allow camera access to control blocks with your hands. Pinch (thumb + index finger) to grab and move blocks. Cannons fire automatically!</p>
     </div>
     
     <div id="container"></div>
@@ -171,8 +171,14 @@
         let opponentConnected = false;
         const myBlockIds = new Set();
         
-        // Room bounds (will be set by server)
+        // Room bounds and camera distance (will be set by server)
         let room = null;
+        let cameraDistance = 12; // Default, will be overwritten by server
+        
+        // Wall grid config (will be set by server)
+        let wallGridConfig = { enabled: false, highlightDuration: 1000, highlightIntensity: 0.8 };
+        let projectileSize = 0.3; // Default, will be set by server
+        const wallHighlights = new Map(); // Map of highlight groups with timeout info
         
         // ============ SCENE ============
         const scene = new THREE.Scene();
@@ -230,18 +236,18 @@
             scene.add(floorGrid);
         }
         
-        function setupCameraForPlayer(pNumber, roomBounds) {
-            // Player 1 looks from negative Z, Player 2 from positive Z
+        function setupCameraForPlayer(pNumber, roomBounds, camDistance) {
+            // Player 1 looks from positive Z, Player 2 from negative Z
             const { minZ, maxZ } = roomBounds;
             const roomCenterZ = (minZ + maxZ) / 2;
             
             if (pNumber === 1) {
-                // Player 1: looking from negative Z side into the room
-                camera.position.set(0, 3, maxZ + 8);
+                // Player 1: looking from positive Z side into the room
+                camera.position.set(0, 3, maxZ + camDistance);
                 camera.lookAt(0, 0, roomCenterZ);
             } else {
-                // Player 2: looking from positive Z side into the room
-                camera.position.set(0, 3, minZ - 8);
+                // Player 2: looking from negative Z side into the room
+                camera.position.set(0, 3, minZ - camDistance);
                 camera.lookAt(0, 0, roomCenterZ);
             }
         }
@@ -264,22 +270,37 @@
 
         // ============ BLOCKS ============
         const blocks = new Map(); // blockId -> mesh
+        const projectiles = new Map(); // projectileId -> mesh
         
         function createBlock(blockData) {
-            const geometry = new THREE.BoxGeometry(1, 1, 1);
             const isMyBlock = blockData.ownerId === playerId;
+            const isCannon = blockData.blockType === 'cannon';
+            
+            // Cannon has a distinct shape (stretched box like a barrel)
+            const geometry = isCannon 
+                ? new THREE.BoxGeometry(0.8, 0.8, 1.5)
+                : new THREE.BoxGeometry(1, 1, 1);
             
             const material = new THREE.MeshStandardMaterial({
                 color: blockData.color,
                 transparent: true,
-                opacity: isMyBlock ? 0.85 : 0.5, // Opponent blocks more transparent
+                opacity: isMyBlock ? 0.9 : 0.5,
+                emissive: isCannon ? blockData.color : 0x000000,
+                emissiveIntensity: isCannon ? 0.3 : 0,
             });
             
             const block = new THREE.Mesh(geometry, material);
             block.position.set(blockData.position.x, blockData.position.y, blockData.position.z);
+            
+            // Orient cannon to point towards enemy
+            if (isCannon && playerNumber) {
+                block.rotation.y = playerNumber === 1 ? 0 : Math.PI;
+            }
+            
             block.userData = { 
                 id: blockData.id,
                 ownerId: blockData.ownerId,
+                blockType: blockData.blockType || 'regular',
                 baseY: blockData.position.y, 
                 phase: Math.random() * Math.PI * 2,
                 isGrabbed: false
@@ -295,12 +316,234 @@
             return block;
         }
         
+        function createProjectile(projectileData) {
+            const geometry = new THREE.SphereGeometry(0.3, 16, 16);
+            const material = new THREE.MeshStandardMaterial({
+                color: projectileData.color,
+                emissive: projectileData.color,
+                emissiveIntensity: 0.6,
+            });
+            
+            const projectile = new THREE.Mesh(geometry, material);
+            projectile.position.set(
+                projectileData.position.x,
+                projectileData.position.y,
+                projectileData.position.z
+            );
+            projectile.userData = {
+                id: projectileData.id,
+                ownerId: projectileData.ownerId,
+            };
+            
+            scene.add(projectile);
+            projectiles.set(projectileData.id, projectile);
+            
+            return projectile;
+        }
+        
+        function updateProjectilePosition(projectileId, position) {
+            const projectile = projectiles.get(projectileId);
+            if (projectile) {
+                projectile.position.set(position.x, position.y, position.z);
+            }
+        }
+        
+        function removeProjectile(projectileId) {
+            const projectile = projectiles.get(projectileId);
+            if (projectile) {
+                scene.remove(projectile);
+                projectiles.delete(projectileId);
+            }
+        }
+        
         function removeBlock(blockId) {
             const block = blocks.get(blockId);
             if (block) {
                 scene.remove(block);
                 blocks.delete(blockId);
                 myBlockIds.delete(blockId);
+            }
+        }
+        
+        // ============ EXPLOSION EFFECTS ============
+        const explosions = []; // Active explosion particle systems
+        
+        function createExplosion(position, color) {
+            const particleCount = 20;
+            const particles = [];
+            
+            // Create particles
+            for (let i = 0; i < particleCount; i++) {
+                const geometry = new THREE.BoxGeometry(0.15, 0.15, 0.15);
+                const material = new THREE.MeshBasicMaterial({
+                    color: color,
+                    transparent: true,
+                    opacity: 1,
+                });
+                const particle = new THREE.Mesh(geometry, material);
+                
+                // Start at explosion center
+                particle.position.copy(position);
+                
+                // Random velocity outward
+                const speed = 3 + Math.random() * 5;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI;
+                particle.userData.velocity = new THREE.Vector3(
+                    Math.sin(phi) * Math.cos(theta) * speed,
+                    Math.sin(phi) * Math.sin(theta) * speed,
+                    Math.cos(phi) * speed
+                );
+                
+                // Random rotation speed
+                particle.userData.rotationSpeed = new THREE.Vector3(
+                    (Math.random() - 0.5) * 10,
+                    (Math.random() - 0.5) * 10,
+                    (Math.random() - 0.5) * 10
+                );
+                
+                scene.add(particle);
+                particles.push(particle);
+            }
+            
+            explosions.push({
+                particles,
+                startTime: Date.now(),
+                duration: 1000, // 1 second
+            });
+        }
+        
+        function updateExplosions(deltaTime) {
+            const now = Date.now();
+            
+            for (let i = explosions.length - 1; i >= 0; i--) {
+                const explosion = explosions[i];
+                const elapsed = now - explosion.startTime;
+                const progress = elapsed / explosion.duration;
+                
+                if (progress >= 1) {
+                    // Remove explosion
+                    for (const particle of explosion.particles) {
+                        scene.remove(particle);
+                    }
+                    explosions.splice(i, 1);
+                    continue;
+                }
+                
+                // Update particles
+                for (const particle of explosion.particles) {
+                    // Apply velocity with gravity
+                    particle.position.add(particle.userData.velocity.clone().multiplyScalar(deltaTime));
+                    particle.userData.velocity.y -= 9.8 * deltaTime; // Gravity
+                    
+                    // Apply rotation
+                    particle.rotation.x += particle.userData.rotationSpeed.x * deltaTime;
+                    particle.rotation.y += particle.userData.rotationSpeed.y * deltaTime;
+                    particle.rotation.z += particle.userData.rotationSpeed.z * deltaTime;
+                    
+                    // Fade out
+                    particle.material.opacity = 1 - progress;
+                    
+                    // Shrink slightly
+                    const scale = 1 - progress * 0.5;
+                    particle.scale.setScalar(scale);
+                }
+            }
+        }
+        
+        // ============ WALL HIT GRID HIGHLIGHTS ============
+        
+        /**
+         * Create a wall hit highlight at the given position.
+         * Shows: 1) A circle the size of the projectile at impact point
+         *        2) The wireframe outline of the grid cell that was hit
+         */
+        function createWallHitHighlight(position, wallSide) {
+            if (!room || !wallGridConfig.enabled) return;
+            
+            // Calculate which grid cell was hit
+            // Grid cells are block-sized (1x1 units, since blocks are 0.5 half-size = 1 full size)
+            const cellSize = 1; // Full block size
+            const gridX = Math.floor(position.x / cellSize) * cellSize + cellSize / 2;
+            const gridY = Math.floor(position.y / cellSize) * cellSize + cellSize / 2;
+            
+            // Determine Z position based on which wall was hit
+            const zPos = wallSide === 'minZ' ? room.minZ + 0.01 : room.maxZ - 0.01;
+            
+            // Create a unique key for this impact (using exact position for uniqueness)
+            const impactKey = `${wallSide}_${position.x.toFixed(2)}_${position.y.toFixed(2)}_${Date.now()}`;
+            
+            // Create a group to hold both the impact circle and grid wireframe
+            const highlightGroup = new THREE.Group();
+            const meshes = []; // Track all meshes for opacity updates
+            
+            // 1) Create the impact circle (size of projectile)
+            const circleGeometry = new THREE.CircleGeometry(projectileSize, 32);
+            const circleMaterial = new THREE.MeshBasicMaterial({
+                color: 0xff4400, // Bright orange-red
+                transparent: true,
+                opacity: wallGridConfig.highlightIntensity,
+                side: THREE.DoubleSide,
+            });
+            const impactCircle = new THREE.Mesh(circleGeometry, circleMaterial);
+            impactCircle.position.set(position.x, position.y, zPos);
+            highlightGroup.add(impactCircle);
+            meshes.push(impactCircle);
+            
+            // 2) Create the grid cell wireframe (outline only)
+            const cellCorners = [
+                new THREE.Vector3(gridX - cellSize/2, gridY - cellSize/2, zPos),
+                new THREE.Vector3(gridX + cellSize/2, gridY - cellSize/2, zPos),
+                new THREE.Vector3(gridX + cellSize/2, gridY + cellSize/2, zPos),
+                new THREE.Vector3(gridX - cellSize/2, gridY + cellSize/2, zPos),
+                new THREE.Vector3(gridX - cellSize/2, gridY - cellSize/2, zPos), // Close the loop
+            ];
+            const lineGeometry = new THREE.BufferGeometry().setFromPoints(cellCorners);
+            const lineMaterial = new THREE.LineBasicMaterial({
+                color: 0xffaa00, // Slightly different orange for contrast
+                transparent: true,
+                opacity: wallGridConfig.highlightIntensity,
+                linewidth: 2,
+            });
+            const gridOutline = new THREE.Line(lineGeometry, lineMaterial);
+            highlightGroup.add(gridOutline);
+            meshes.push(gridOutline);
+            
+            scene.add(highlightGroup);
+            
+            // Store highlight with its start time for fade-out animation
+            const highlightData = {
+                group: highlightGroup,
+                meshes: meshes,
+                startTime: Date.now(),
+                timeoutId: setTimeout(() => {
+                    // Remove after duration
+                    scene.remove(highlightGroup);
+                    wallHighlights.delete(impactKey);
+                }, wallGridConfig.highlightDuration),
+            };
+            
+            wallHighlights.set(impactKey, highlightData);
+        }
+        
+        /**
+         * Update wall hit highlights (fade out animation)
+         */
+        function updateWallHighlights() {
+            if (!wallGridConfig.enabled) return;
+            
+            const now = Date.now();
+            for (const [key, data] of wallHighlights) {
+                const elapsed = now - data.startTime;
+                const progress = elapsed / wallGridConfig.highlightDuration;
+                
+                if (progress < 1) {
+                    // Fade out opacity over time for all meshes in the group
+                    const newOpacity = wallGridConfig.highlightIntensity * (1 - progress);
+                    for (const mesh of data.meshes) {
+                        mesh.material.opacity = newOpacity;
+                    }
+                }
             }
         }
         
@@ -362,9 +605,10 @@
             const x = mappedX * (room.maxX - room.minX) + room.minX;
             const y = (1 - normY) * (room.maxY - room.minY) + room.minY;
             
-            // Z position depends on player number - hand is at their side of the room
-            // Must match the spawn side: P1 blocks at maxZ-4, P2 blocks at minZ+4
-            const handZ = playerNumber === 1 ? room.maxZ - 3 : room.minZ + 3;
+            // Z position: hand is at the player's side of the room (same as blocks)
+            // Player 1 at maxZ edge, Player 2 at minZ edge
+            const blockHalfSize = 0.5;
+            const handZ = playerNumber === 1 ? room.maxZ - blockHalfSize : room.minZ + blockHalfSize;
             
             return new THREE.Vector3(x, y, handZ);
         }
@@ -639,12 +883,15 @@
                     playerId = message.playerId;
                     playerNumber = message.playerNumber;
                     room = message.room;
+                    cameraDistance = message.cameraDistance || 12;
+                    wallGridConfig = message.wallGrid || wallGridConfig;
+                    projectileSize = message.projectileSize || 0.3;
                     
                     updatePlayerInfo(`Player ${playerNumber} (${playerId})`);
                     
                     // Setup room wireframe and camera
                     createRoomWireframe(room);
-                    setupCameraForPlayer(playerNumber, room);
+                    setupCameraForPlayer(playerNumber, room, cameraDistance);
                     
                     // Update hand shadow position based on room
                     handShadow.position.y = room.minY + 0.01;
@@ -652,6 +899,11 @@
                     // Create all blocks from server state
                     for (const blockData of message.blocks) {
                         createBlock(blockData);
+                    }
+                    
+                    // Create any existing projectiles
+                    for (const projData of message.projectiles || []) {
+                        createProjectile(projData);
                     }
                     
                     // Start hand tracking after receiving welcome
@@ -671,6 +923,13 @@
                         if (block.userData.ownerId !== playerId) {
                             scene.remove(block);
                             blocks.delete(blockId);
+                        }
+                    }
+                    // Remove opponent's projectiles
+                    for (const [projId, proj] of projectiles) {
+                        if (proj.userData.ownerId !== playerId) {
+                            scene.remove(proj);
+                            projectiles.delete(projId);
                         }
                     }
                     break;
@@ -699,6 +958,45 @@
                     if (releasedBlock) {
                         releasedBlock.userData.isGrabbed = false;
                         opponentGrabHighlight.visible = false;
+                    }
+                    break;
+                    
+                case 'projectile_spawned':
+                    createProjectile(message.projectile);
+                    break;
+                    
+                case 'projectiles_update':
+                    // Update all projectile positions
+                    for (const projData of message.projectiles) {
+                        if (projectiles.has(projData.id)) {
+                            updateProjectilePosition(projData.id, projData.position);
+                        } else {
+                            createProjectile(projData);
+                        }
+                    }
+                    break;
+                    
+                case 'projectile_destroyed':
+                    removeProjectile(message.projectileId);
+                    break;
+                    
+                case 'block_destroyed':
+                    // Create explosion effect at the block's position
+                    createExplosion(
+                        new THREE.Vector3(message.position.x, message.position.y, message.position.z),
+                        message.color
+                    );
+                    // Remove the block
+                    removeBlock(message.blockId);
+                    // If it was my block that got destroyed, log it
+                    if (myBlockIds.has(message.blockId)) {
+                        console.log('One of your blocks was destroyed!');
+                    }
+                    break;
+                    
+                case 'wall_hit':
+                    if (wallGridConfig.enabled) {
+                        createWallHitHighlight(message.position, message.wallSide);
                     }
                     break;
                     
@@ -786,17 +1084,27 @@
 
         // ============ ANIMATION ============
         const clock = new THREE.Clock();
+        let lastFrameTime = 0;
         
         function animate() {
             requestAnimationFrame(animate);
             const t = clock.getElapsedTime();
+            const deltaTime = t - lastFrameTime;
+            lastFrameTime = t;
             
+            // Update block floating animation
             for (const [id, block] of blocks) {
                 if (block !== grabbedBlock && !block.userData.isGrabbed) {
+                    // Gentle floating animation, no rotation
                     block.position.y = block.userData.baseY + Math.sin(t + block.userData.phase) * 0.15;
-                    block.rotation.y += 0.003;
                 }
             }
+            
+            // Update explosion particles
+            updateExplosions(deltaTime);
+            
+            // Update wall hit highlights (fade out)
+            updateWallHighlights();
             
             renderer.render(scene, camera);
         }

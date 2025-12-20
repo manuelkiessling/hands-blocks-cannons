@@ -11,6 +11,8 @@ export interface BotConfig {
   moveDuration: number;
   /** Max distance to move from current position */
   moveRange: number;
+  /** Chance to fire cannon each action cycle (0-1) */
+  fireChance: number;
 }
 
 const DEFAULT_CONFIG: BotConfig = {
@@ -18,6 +20,7 @@ const DEFAULT_CONFIG: BotConfig = {
   moveSpeed: 50,
   moveDuration: 1500,
   moveRange: 3,
+  fireChance: 0.3, // 30% chance to fire each cycle
 };
 
 type BotState = 'idle' | 'grabbing' | 'moving' | 'releasing';
@@ -48,6 +51,7 @@ export class BotClient {
   private playerNumber: 1 | 2 | null = null;
   private room: RoomBounds | null = null;
   private myBlocks: Map<string, Block> = new Map();
+  private myCannonId: string | null = null;
   private grabbedBlockId: string | null = null;
   private state: BotState = 'idle';
   private config: BotConfig;
@@ -57,6 +61,7 @@ export class BotClient {
   private moveStartTime = 0;
   private moveStartPos: Position | null = null;
   private moveTargetPos: Position | null = null;
+  private lastFireTime = 0;
 
   constructor(config: Partial<BotConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -124,15 +129,21 @@ export class BotClient {
           room: this.room,
         });
 
-        // Store our blocks
+        // Store our blocks and find cannon
         if (message.blocks) {
           for (const block of message.blocks) {
             if (block.ownerId === this.playerId) {
               this.myBlocks.set(block.id, block);
+              if (block.blockType === 'cannon') {
+                this.myCannonId = block.id;
+              }
             }
           }
         }
-        logger.info('Bot has blocks', { count: this.myBlocks.size });
+        logger.info('Bot has blocks', {
+          count: this.myBlocks.size,
+          cannonId: this.myCannonId,
+        });
 
         // Start the behavior loop
         this.scheduleNextAction();
@@ -177,6 +188,16 @@ export class BotClient {
       return;
     }
 
+    // Randomly decide to fire or move
+    const shouldFire = Math.random() < this.config.fireChance;
+    const canFire = this.myCannonId && Date.now() - this.lastFireTime > 2000; // 2s cooldown
+
+    if (shouldFire && canFire) {
+      this.fireCannon();
+      this.scheduleNextAction();
+      return;
+    }
+
     const block = this.pickRandomBlock();
     if (!block) {
       logger.warn('Bot has no blocks to move');
@@ -185,6 +206,14 @@ export class BotClient {
     }
 
     this.startGrab(block);
+  }
+
+  private fireCannon(): void {
+    if (!this.myCannonId) return;
+
+    logger.info('Bot firing cannon!', { cannonId: this.myCannonId });
+    this.send({ type: 'cannon_fire', cannonId: this.myCannonId });
+    this.lastFireTime = Date.now();
   }
 
   private pickRandomBlock(): Block | null {
