@@ -1,0 +1,98 @@
+---
+description: Shared package guidelines for types, protocol, and constants
+globs: ["**/*.ts"]
+---
+
+# Shared Package Guidelines
+
+The `@block-game/shared` package contains code shared between server, client, and bot.
+
+## Package Contents
+
+```
+src/
+├── types/          # Core game types
+│   └── index.ts    # Position, Block, Projectile, Player, etc.
+├── protocol/       # Message definitions
+│   └── index.ts    # Zod schemas for client/server messages
+├── constants.ts    # Shared constants (colors, thresholds)
+└── index.ts        # Re-exports everything
+```
+
+## What Belongs Here
+
+✅ **Include:**
+- Type definitions used by multiple packages
+- Zod schemas for protocol validation
+- Constants used by both client and server
+- Pure utility functions with no side effects
+
+❌ **Do NOT include:**
+- Runtime configuration (keep in server)
+- DOM-related code (client only)
+- Node.js-specific code (server only)
+- Business logic with side effects
+
+## Type Guidelines
+
+All types should be:
+- `readonly` for immutability
+- Well-documented with JSDoc
+- Exported from `index.ts`
+
+```typescript
+/**
+ * 3D position coordinates in world space.
+ */
+export interface Position {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+}
+```
+
+## Protocol Schema Guidelines
+
+Use Zod for runtime validation:
+
+```typescript
+export const PositionSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  z: z.number(),
+});
+
+export type Position = z.infer<typeof PositionSchema>;
+```
+
+Use discriminated unions for message types:
+
+```typescript
+export const ServerMessage = z.discriminatedUnion('type', [
+  WelcomeMessage,
+  BlockMovedMessage,
+  // ...
+]);
+```
+
+## Constants Guidelines
+
+Group related constants using `as const`:
+
+```typescript
+export const HAND_COLORS = {
+  NORMAL: 0x66aaff,
+  WARNING: 0xffaa00,
+  OUTSIDE: 0xff4444,
+} as const;
+```
+
+## Building
+
+After any changes, rebuild the package:
+
+```bash
+npm run build -w @block-game/shared
+```
+
+Other packages will automatically use the new types.

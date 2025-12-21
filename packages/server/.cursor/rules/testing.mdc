@@ -1,0 +1,204 @@
+---
+description: Testing standards and patterns for the server package
+globs: ["**/tests/**/*.ts"]
+---
+
+# Testing Standards
+
+## Test Framework
+
+Uses **Vitest** with the following configuration:
+
+```typescript
+// vitest.config.ts
+export default defineConfig({
+  test: {
+    globals: true,
+    environment: 'node',
+  },
+});
+```
+
+## File Organization
+
+```
+tests/
+├── GameState.test.ts       # Core state mutations
+├── CollisionSystem.test.ts # Block/projectile collisions  
+├── ProjectileSystem.test.ts # Projectile physics
+└── CannonSystem.test.ts    # Cannon mechanics
+```
+
+## Test Structure
+
+Use `describe` blocks to group related tests:
+
+```typescript
+import { describe, it, expect, beforeEach } from 'vitest';
+
+describe('GameState', () => {
+  describe('player management', () => {
+    it('adds player 1 when first player joins', () => { ... });
+    it('adds player 2 when second player joins', () => { ... });
+  });
+  
+  describe('block interactions', () => {
+    it('allows player to grab their own block', () => { ... });
+    it('prevents player from grabbing opponent block', () => { ... });
+  });
+});
+```
+
+## Test Naming
+
+Use clear, behavior-focused names:
+
+```typescript
+// GOOD - describes behavior
+it('returns collision result when blocks overlap', () => { ... });
+it('allows block movement within room bounds', () => { ... });
+it('rejects grab when block is already held', () => { ... });
+
+// BAD - describes implementation
+it('calls blocksCollide function', () => { ... });
+it('tests moveBlock method', () => { ... });
+```
+
+## Test Helpers
+
+Create helper functions for common setup:
+
+```typescript
+// Create default game configuration
+function createTestConfig(): GameConfig {
+  return {
+    room: DEFAULT_ROOM,
+    blockCount: 6,
+    // ...
+  };
+}
+
+// Create game state with specific blocks
+function createStateWithBlocks(blocks: Block[]): GameState {
+  const state = createInitialState(createTestConfig());
+  for (const block of blocks) {
+    state = state.addBlock(block);
+  }
+  return state;
+}
+```
+
+## Avoiding Non-Null Assertions
+
+Never use `!` in tests. Use helper functions that throw:
+
+```typescript
+// GOOD - throws if undefined
+function getBlock(state: GameState, id: string): Block {
+  const block = state.getBlock(id);
+  if (!block) {
+    throw new Error(`Test setup error: block ${id} not found`);
+  }
+  return block;
+}
+
+it('moves block to new position', () => {
+  const block = getBlock(state, blockId);
+  expect(block.position.x).toBe(5);
+});
+
+// BAD - uses non-null assertion
+it('moves block to new position', () => {
+  const block = state.getBlock(blockId)!;
+  expect(block.position.x).toBe(5);
+});
+```
+
+## Testing Immutable State
+
+Verify that state changes return new instances:
+
+```typescript
+it('returns new GameState instance after moveBlock', () => {
+  const newState = state.moveBlock(blockId, newPosition);
+  
+  // Different instance
+  expect(newState).not.toBe(state);
+  
+  // Original unchanged
+  expect(getBlock(state, blockId).position).not.toEqual(newPosition);
+  
+  // New state has update
+  expect(getBlock(newState, blockId).position).toEqual(newPosition);
+});
+```
+
+## Testing Edge Cases
+
+Always test boundaries and error conditions:
+
+```typescript
+describe('block movement', () => {
+  it('clamps position to room bounds', () => {
+    const farPosition = { x: 100, y: 100, z: 100 };
+    const newState = state.moveBlock(blockId, farPosition);
+    
+    const block = getBlock(newState, blockId);
+    expect(block.position.x).toBeLessThanOrEqual(room.maxX - 0.5);
+    expect(block.position.y).toBeLessThanOrEqual(room.maxY - 0.5);
+  });
+  
+  it('returns unchanged state for invalid block id', () => {
+    const newState = state.moveBlock('nonexistent', position);
+    expect(newState).toBe(state);
+  });
+});
+```
+
+## Testing Systems
+
+Test system functions with controlled inputs:
+
+```typescript
+describe('CollisionSystem', () => {
+  it('detects overlapping blocks', () => {
+    const block1 = { id: '1', position: { x: 0, y: 0, z: 0 }, size: 1 };
+    const block2 = { id: '2', position: { x: 0.5, y: 0, z: 0 }, size: 1 };
+    
+    expect(blocksCollide(block1, block2)).toBe(true);
+  });
+  
+  it('does not collide blocks far apart', () => {
+    const block1 = { id: '1', position: { x: 0, y: 0, z: 0 }, size: 1 };
+    const block2 = { id: '2', position: { x: 10, y: 0, z: 0 }, size: 1 };
+    
+    expect(blocksCollide(block1, block2)).toBe(false);
+  });
+});
+```
+
+## Running Tests
+
+```bash
+# Run all tests
+npm run test -w @block-game/server
+
+# Run tests once (CI mode)
+npm run test:run -w @block-game/server
+
+# Run specific test file
+npx vitest tests/GameState.test.ts
+
+# Watch mode (default)
+npm run test -w @block-game/server
+```
+
+## Coverage
+
+Check coverage for new features:
+
+```bash
+npx vitest run --coverage
+```
+
+Aim for high coverage on `src/game/` modules.

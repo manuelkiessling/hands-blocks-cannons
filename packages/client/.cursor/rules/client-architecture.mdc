@@ -1,0 +1,177 @@
+---
+description: Client architecture and module organization
+globs: ["**/*.ts"]
+---
+
+# Client Architecture
+
+The client is a modular Vite + TypeScript application using Three.js for 3D rendering and MediaPipe for hand tracking.
+
+## Module Structure
+
+```
+src/
+├── main.ts           # Entry point - orchestrates all modules
+├── constants.ts      # Client-specific constants
+├── types.ts          # Client-specific type definitions
+├── scene/            # Three.js rendering
+│   ├── SceneManager.ts    # Scene, camera, lights, starfield
+│   ├── RoomRenderer.ts    # Wireframe room, floor grid
+│   ├── BlockRenderer.ts   # Block/projectile meshes
+│   └── EffectsManager.ts  # Explosions, wall highlights
+├── input/            # Hand tracking
+│   ├── HandTracker.ts     # MediaPipe initialization
+│   ├── GestureDetector.ts # Pinch detection, 3D mapping
+│   └── HandVisualizer.ts  # 3D hand skeleton
+├── network/          # Server communication
+│   └── GameClient.ts      # WebSocket client
+├── game/             # Game logic
+│   └── InteractionManager.ts # Grab/move/release
+└── ui/               # DOM updates
+    └── StatusDisplay.ts   # Status text updates
+```
+
+## Module Responsibilities
+
+### Scene Modules
+
+| Module | Responsibility |
+|--------|---------------|
+| `SceneManager` | Three.js setup, camera, lighting, starfield, render loop |
+| `RoomRenderer` | Wireframe room bounds, floor grid |
+| `BlockRenderer` | Block/projectile mesh creation, highlights, animations |
+| `EffectsManager` | Explosions, wall hit highlights, depth indicators |
+
+### Input Modules
+
+| Module | Responsibility |
+|--------|---------------|
+| `HandTracker` | MediaPipe initialization, webcam stream |
+| `GestureDetector` | Pinch detection, boundary state, 3D coordinate mapping |
+| `HandVisualizer` | 3D hand skeleton rendering |
+
+### Network Modules
+
+| Module | Responsibility |
+|--------|---------------|
+| `GameClient` | WebSocket connection, message serialization, event callbacks |
+
+### Game Modules
+
+| Module | Responsibility |
+|--------|---------------|
+| `InteractionManager` | Grab/move/release logic, throttled network updates |
+
+## Data Flow
+
+```mermaid
+sequenceDiagram
+    participant HT as HandTracker
+    participant GD as GestureDetector
+    participant IM as InteractionManager
+    participant GC as GameClient
+    participant BR as BlockRenderer
+    
+    HT->>GD: landmarks
+    GD->>IM: pinchPoint, isPinching
+    IM->>GC: sendBlockMove
+    GC->>BR: onBlockMoved (server response)
+```
+
+## Key Patterns
+
+### Event-Based Network Communication
+
+`GameClient` uses callback events, not Promises:
+
+```typescript
+const client = new GameClient({
+  onWelcome: (data) => { ... },
+  onBlockMoved: (playerId, blockId, position) => { ... },
+});
+```
+
+### Module Composition in main.ts
+
+The `Game` class in `main.ts` creates and wires all modules:
+
+```typescript
+class Game {
+  constructor() {
+    this.sceneManager = new SceneManager(container);
+    this.blockRenderer = new BlockRenderer(this.sceneManager.scene);
+    this.gameClient = new GameClient({ onWelcome: this.handleWelcome.bind(this) });
+    // ...
+  }
+}
+```
+
+### Throttled Position Updates
+
+Block movements are throttled to reduce network traffic:
+
+```typescript
+// In InteractionManager
+const now = Date.now();
+if (now - this.lastSendTime > POSITION_SEND_THROTTLE_MS) {
+  this.gameClient.sendBlockMove(blockId, position);
+  this.lastSendTime = now;
+}
+```
+
+## Imports
+
+Import from shared package for types and constants:
+
+```typescript
+import type { Position, Block } from '@block-game/shared';
+import { BLOCK_COLORS, CAMERA_MARGIN } from '@block-game/shared';
+```
+
+Import client-specific constants:
+
+```typescript
+import { CAMERA, SCENE_COLORS, MEDIAPIPE } from './constants.js';
+```
+
+## Three.js Patterns
+
+### Resource Cleanup
+
+Always dispose of geometries and materials:
+
+```typescript
+dispose(): void {
+  this.scene.remove(this.mesh);
+  this.mesh.geometry.dispose();
+  if (this.mesh.material instanceof THREE.Material) {
+    this.mesh.material.dispose();
+  }
+}
+```
+
+### Animation Loop
+
+The animation loop is in `main.ts`:
+
+```typescript
+private animate = (): void => {
+  requestAnimationFrame(this.animate);
+  
+  // Process input
+  // Update animations
+  // Render
+  
+  this.sceneManager.render();
+};
+```
+
+## Development
+
+```bash
+# Start dev server
+npm run dev -w @block-game/client
+
+# Type check
+npm run typecheck -w @block-game/client
+```

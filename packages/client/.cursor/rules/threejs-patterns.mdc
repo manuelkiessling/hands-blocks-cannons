@@ -1,0 +1,235 @@
+---
+description: Three.js coding patterns and best practices
+globs: ["**/scene/**/*.ts", "**/main.ts"]
+---
+
+# Three.js Patterns
+
+## Object Creation
+
+### Meshes
+
+Always provide both geometry and material:
+
+```typescript
+const geometry = new THREE.BoxGeometry(1, 1, 1);
+const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+const mesh = new THREE.Mesh(geometry, material);
+scene.add(mesh);
+```
+
+### Disposing Resources
+
+Three.js resources must be manually disposed:
+
+```typescript
+// Dispose a mesh
+scene.remove(mesh);
+mesh.geometry.dispose();
+if (mesh.material instanceof THREE.Material) {
+  mesh.material.dispose();
+}
+
+// Dispose materials with textures
+if (material instanceof THREE.MeshStandardMaterial && material.map) {
+  material.map.dispose();
+}
+```
+
+### Group Organization
+
+Use groups for related objects:
+
+```typescript
+const roomWireframe = new THREE.Group();
+roomWireframe.add(mainWireframe);
+roomWireframe.add(glowWireframe);
+scene.add(roomWireframe);
+```
+
+## Performance
+
+### Reuse Geometries
+
+Create geometry once, reuse for multiple meshes:
+
+```typescript
+// GOOD - shared geometry
+const highlightGeo = new THREE.BoxGeometry(1.15, 1.15, 1.15);
+const highlightEdges = new THREE.EdgesGeometry(highlightGeo);
+
+this.reachableHighlight = new THREE.LineSegments(highlightEdges, material1);
+this.grabbedHighlight = new THREE.LineSegments(highlightEdges.clone(), material2);
+```
+
+### Minimize Draw Calls
+
+Use `THREE.Points` for many small objects (like stars):
+
+```typescript
+const geometry = new THREE.BufferGeometry();
+geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+const stars = new THREE.Points(geometry, material);
+```
+
+### Update Buffers Efficiently
+
+When updating buffer attributes, set `needsUpdate`:
+
+```typescript
+const positions = line.geometry.attributes['position']?.array as Float32Array;
+positions[0] = newX;
+positions[1] = newY;
+positions[2] = newZ;
+line.geometry.attributes['position']!.needsUpdate = true;
+```
+
+## Materials
+
+### Standard Material Properties
+
+Common properties for game objects:
+
+```typescript
+const material = new THREE.MeshStandardMaterial({
+  color: 0x4a9eff,
+  transparent: true,
+  opacity: 0.9,
+  emissive: 0x4a9eff,    // For glow effect
+  emissiveIntensity: 0.3,
+});
+```
+
+### Line Materials
+
+For wireframes and outlines:
+
+```typescript
+const material = new THREE.LineBasicMaterial({
+  color: 0x00ffcc,
+  transparent: true,
+  opacity: 0.6,
+});
+```
+
+### Shader Materials
+
+For custom effects (like stars):
+
+```typescript
+const material = new THREE.ShaderMaterial({
+  uniforms: {},
+  vertexShader: `...`,
+  fragmentShader: `...`,
+  transparent: true,
+  vertexColors: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+});
+```
+
+## Coordinate Transforms
+
+### Screen to World
+
+Convert normalized coordinates to world space:
+
+```typescript
+function landmarkTo3D(lm: { x: number; y: number }): THREE.Vector3 {
+  const x = mappedX * (room.maxX - room.minX) + room.minX;
+  const y = (1 - normY) * (room.maxY - room.minY) + room.minY;
+  return new THREE.Vector3(x, y, handZ);
+}
+```
+
+### Object Positioning
+
+Use `Vector3` methods for calculations:
+
+```typescript
+// Midpoint
+const midpoint = new THREE.Vector3().lerpVectors(start, end, 0.5);
+
+// Distance
+const distance = start.distanceTo(end);
+
+// Copy position
+mesh.position.copy(targetPosition);
+```
+
+## Animation
+
+### Using Clock
+
+```typescript
+const clock = new THREE.Clock();
+
+function animate() {
+  const elapsed = clock.getElapsedTime();
+  const delta = clock.getDelta(); // Time since last frame
+  
+  // Floating animation
+  mesh.position.y = baseY + Math.sin(elapsed + phase) * amplitude;
+}
+```
+
+### Smooth Following (Lerp)
+
+```typescript
+// Smooth movement toward target
+mesh.position.x += (target.x - mesh.position.x) * 0.25;
+mesh.position.y += (target.y - mesh.position.y) * 0.25;
+```
+
+## Camera
+
+### Perspective Camera Setup
+
+```typescript
+const camera = new THREE.PerspectiveCamera(
+  60,                                    // FOV
+  window.innerWidth / window.innerHeight, // Aspect
+  0.1,                                   // Near
+  500                                    // Far
+);
+```
+
+### Responsive Resize
+
+```typescript
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+```
+
+## Visibility
+
+Toggle visibility instead of add/remove for frequently toggled objects:
+
+```typescript
+highlight.visible = true;  // Show
+highlight.visible = false; // Hide
+```
+
+## TypeScript with Three.js
+
+### Type Imports
+
+```typescript
+import * as THREE from 'three';
+import type { Object3D, Mesh, Material } from 'three';
+```
+
+### Material Type Guards
+
+```typescript
+if (mesh.material instanceof THREE.Material) {
+  mesh.material.dispose();
+}
+
+// For array materials
+const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+materials.forEach(mat => mat.dispose());
+```

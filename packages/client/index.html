@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hand-Controlled Blocks - Multiplayer</title>
+    <link rel="stylesheet" href="/src/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js" crossorigin="anonymous"></script>
+</head>
+<body>
+    <div id="server-config">
+        <h2>Connect to Game Server</h2>
+        <input type="text" id="server-url" placeholder="ws://localhost:3001" value="ws://localhost:3001">
+        <button id="connect-btn">Connect</button>
+    </div>
+
+    <div id="fallback" class="hidden">
+        <h1>Camera Access Required</h1>
+        <p>Allow camera access to control blocks with your hands. Pinch (thumb + index finger) to grab and move blocks. Cannons fire automatically!</p>
+    </div>
+    
+    <div id="container"></div>
+    
+    <div id="webcam-container">
+        <video id="webcam" autoplay playsinline></video>
+        <div id="webcam-bounds"></div>
+    </div>
+    
+    <div id="status">Connecting...</div>
+    <div id="connection-status">Server: disconnected</div>
+    <div id="player-info"></div>
+
+    <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
+

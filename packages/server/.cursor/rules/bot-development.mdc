@@ -1,0 +1,182 @@
+---
+description: Bot client development patterns
+globs: ["**/bot/**/*.ts"]
+---
+
+# Bot Development
+
+The bot is an automated player that simulates human-like hand movements and game interactions.
+
+## Module Structure
+
+```
+src/bot/
+├── index.ts        # Entry point - creates and starts bot
+├── BotClient.ts    # WebSocket connection, state management
+├── BotBehavior.ts  # Decision-making: grab/release/fire timing
+└── BotMovement.ts  # Smooth movement interpolation
+```
+
+## Architecture
+
+```mermaid
+graph TD
+    BotClient["BotClient<br/>(state & connection)"]
+    BotBehavior["BotBehavior<br/>(decisions)"]
+    BotMovement["BotMovement<br/>(interpolation)"]
+    
+    BotClient --> BotBehavior
+    BotClient --> BotMovement
+    BotBehavior --> BotClient
+    BotMovement --> BotClient
+```
+
+## State Management
+
+Bot maintains local state synced with server:
+
+```typescript
+interface BotState {
+  connected: boolean;
+  playerNumber: 1 | 2 | null;
+  room: RoomBounds | null;
+  myBlocks: Map<string, Block>;
+  grabbedBlockId: string | null;
+  currentPos: Position;
+  targetPos: Position;
+}
+```
+
+## Movement Interpolation
+
+The bot moves smoothly between positions:
+
+```typescript
+// In BotMovement
+updateMove(progress: number, state: MovementState): Position {
+  const eased = easeInOutQuad(progress);
+  return {
+    x: lerp(state.startPos.x, state.targetPos.x, eased),
+    y: lerp(state.startPos.y, state.targetPos.y, eased),
+    z: state.startPos.z, // Z is fixed at room edge
+  };
+}
+```
+
+Movement characteristics:
+- **Duration**: 500-2000ms (random)
+- **Easing**: Quadratic ease-in-out for natural feel
+- **Z-fixed**: Stays at player's edge of room
+
+## Behavior Patterns
+
+### Decision Timing
+
+Actions are scheduled with random delays:
+
+```typescript
+scheduleNextAction(): void {
+  const delay = randomBetween(MIN_ACTION_DELAY, MAX_ACTION_DELAY);
+  setTimeout(() => this.tick(), delay);
+}
+```
+
+### Action Selection
+
+The bot randomly chooses between:
+1. **Grab a block** - Select random block, grab, move
+2. **Release block** - Drop currently held block
+3. **Fire cannon** - Fire projectile
+
+### Movement Workflow
+
+```
+┌─────────────────────────────────────────────────────┐
+│  IDLE        GRAB          MOVING        RELEASE   │
+│   ○  ──→  pick block ──→  interpolate ──→  release │
+│   ↑                                          │      │
+│   └──────────────────────────────────────────┘      │
+└─────────────────────────────────────────────────────┘
+```
+
+## WebSocket Communication
+
+### Connection
+
+```typescript
+const ws = new WebSocket(`ws://localhost:${PORT}`);
+
+ws.on('message', (data) => {
+  const msg = JSON.parse(data.toString());
+  this.handleMessage(msg);
+});
+```
+
+### Message Handling
+
+```typescript
+handleMessage(msg: ServerMessage): void {
+  switch (msg.type) {
+    case 'welcome':
+      this.playerNumber = msg.playerNumber;
+      this.room = msg.room;
+      break;
+    case 'block_state':
+      this.syncBlocks(msg.blocks);
+      break;
+    // ...
+  }
+}
+```
+
+### Sending Commands
+
+```typescript
+send(msg: ClientMessage): void {
+  if (this.ws.readyState === WebSocket.OPEN) {
+    this.ws.send(JSON.stringify(msg));
+  }
+}
+```
+
+## Configuration
+
+Bot behavior can be tuned via constants in `BotBehavior.ts`:
+
+```typescript
+const MIN_ACTION_DELAY = 200;   // ms between actions
+const MAX_ACTION_DELAY = 800;
+const MOVE_DURATION_MIN = 500;  // ms for movement
+const MOVE_DURATION_MAX = 2000;
+const FIRE_PROBABILITY = 0.2;   // 20% chance to fire
+```
+
+## Testing Considerations
+
+When testing with the bot:
+- Start server first: `npm run dev:server`
+- Then start bot: `npm run bot`
+- Bot connects as Player 2 if Player 1 is connected
+
+## Debugging
+
+Enable verbose logging:
+
+```typescript
+// In BotClient.ts
+const DEBUG = true;
+
+if (DEBUG) {
+  console.log(`[Bot] Grabbing block ${blockId} at`, position);
+}
+```
+
+## Running
+
+```bash
+# From workspace root
+npm run bot
+
+# Or from server package
+npm run bot -w @block-game/server
+```

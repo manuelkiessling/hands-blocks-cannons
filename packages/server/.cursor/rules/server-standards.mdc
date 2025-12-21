@@ -1,0 +1,173 @@
+---
+description: Development standards for the block-game-server TypeScript project
+globs: ["**/*.ts"]
+---
+
+# Server Development Standards
+
+## TypeScript Strictness
+
+This project uses maximum TypeScript strictness. The following compiler options are enforced:
+
+- `strict: true` - All strict type checking options
+- `noUncheckedIndexedAccess: true` - Array/object indexing returns `T | undefined`
+- `noImplicitReturns: true` - All code paths must return
+- `noFallthroughCasesInSwitch: true` - No fallthrough in switch statements
+- `exactOptionalPropertyTypes: true` - Optional properties cannot be assigned `undefined` unless explicitly typed
+- `noPropertyAccessFromIndexSignature: true` - Use bracket notation for index signatures
+
+**Never use:**
+- `any` type (use `unknown` and narrow with type guards)
+- Non-null assertions (`!`) - use proper null checks or throw errors
+- Type assertions (`as`) unless absolutely necessary with a comment explaining why
+
+## Code Quality Tools
+
+Before committing, always run:
+```bash
+npm run validate
+```
+
+This runs:
+1. `tsc --noEmit` - Type checking
+2. `biome check --write .` - Linting and formatting
+3. `vitest run` - All tests
+
+## File Organization
+
+```
+src/
+├── index.ts              # Entry point only - minimal code
+├── server.ts             # Server setup
+├── game/                 # Game logic (pure, testable)
+│   ├── GameState.ts      # Immutable state orchestrator
+│   ├── GameManager.ts    # Connection & state coordination
+│   ├── CollisionSystem.ts # Block & projectile collisions
+│   ├── ProjectileSystem.ts # Projectile movement & wall hits
+│   ├── CannonSystem.ts   # Cannon firing & cooldowns
+│   └── types.ts          # Server-specific types & config
+├── protocol/             # Message handling
+│   ├── messages.ts       # Re-exports from @block-game/shared
+│   └── handlers.ts       # Message handler registry
+├── bot/                  # Bot client
+│   ├── BotClient.ts      # WebSocket connection
+│   ├── BotBehavior.ts    # Decision-making logic
+│   └── BotMovement.ts    # Movement interpolation
+├── config/               # Configuration
+│   └── gameConfig.ts     # YAML config loader
+└── utils/                # Shared utilities
+    └── logger.ts
+```
+
+## System Architecture
+
+The game uses a **System-based architecture** for game logic:
+
+```typescript
+// Systems are pure functions, no internal state
+export function updateProjectiles(
+  projectiles: ReadonlyMap<string, Projectile>,
+  blocks: ReadonlyMap<string, Block>,
+  room: RoomBounds,
+  deltaTime: number
+): ProjectileUpdateResult { ... }
+
+// GameState orchestrates systems
+class GameState {
+  updateProjectiles(deltaTime: number) {
+    const result = projectileSystemUpdate(
+      this._projectiles,
+      this._blocks,
+      this._config.room,
+      deltaTime
+    );
+    return new GameState(result.blocks, ...);
+  }
+}
+```
+
+## Immutable Patterns
+
+State classes (like `GameState`) must be immutable:
+- All properties should be `readonly`
+- Methods that "change" state return a new instance
+- Never mutate existing state objects
+- Use `ReadonlyMap`, `ReadonlyArray`, `Readonly<T>` for collections
+
+```typescript
+// GOOD
+moveBlock(blockId: string, pos: Position): GameState {
+  const newBlocks = new Map(this._blocks);
+  newBlocks.set(blockId, { ...block, position: pos });
+  return new GameState(newBlocks, this._players, this._config);
+}
+
+// BAD - mutates state
+moveBlock(blockId: string, pos: Position): void {
+  this._blocks.get(blockId).position = pos;
+}
+```
+
+## Handler Registry Pattern
+
+Message handlers use a registry pattern for extensibility:
+
+```typescript
+const messageHandlers: {
+  [K in ClientMessage['type']]: MessageHandler<Extract<ClientMessage, { type: K }>>;
+} = {
+  block_grab: handleBlockGrab,
+  block_move: handleBlockMove,
+  // Add new handlers here
+};
+```
+
+## Imports from Shared Package
+
+Always import types and protocol from `@block-game/shared`:
+
+```typescript
+import type { Position, Block } from '@block-game/shared';
+import { parseClientMessage, ServerMessage } from '@block-game/shared';
+```
+
+For server-specific types, use `./types.js`:
+
+```typescript
+import { TICK_RATE_MS, DEFAULT_GAME_CONFIG } from './types.js';
+```
+
+## Testing Requirements
+
+- All game systems in `src/game/` must have corresponding tests
+- Tests go in `tests/` directory with `.test.ts` suffix
+- Use descriptive test names that explain the behavior
+- Test edge cases and error conditions
+- Avoid non-null assertions in tests - use helper functions that throw on missing data
+
+Current test files:
+- `GameState.test.ts` - Core state mutations
+- `CollisionSystem.test.ts` - Collision detection
+- `ProjectileSystem.test.ts` - Projectile physics
+- `CannonSystem.test.ts` - Cannon mechanics
+
+## Error Handling
+
+- Use explicit error handling, not exceptions for control flow
+- Return `Result` types or use discriminated unions for operations that can fail
+- Log errors with structured data using the logger utility
+- Never swallow errors silently
+
+## Biome Rules
+
+Key rules enforced by Biome:
+- `noExplicitAny` - Forbidden
+- `noNonNullAssertion` - Forbidden
+- `useConst` - Required for non-reassigned variables
+- `noUnusedImports` - Error
+- `noUnusedVariables` - Error
+
+If you must bypass a rule, use the ignore comment with explanation:
+```typescript
+// biome-ignore lint/ruleName: Explanation why this is necessary
+```

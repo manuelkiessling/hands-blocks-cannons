@@ -1,0 +1,88 @@
+---
+description: Monorepo project structure and organization
+globs: ["**/*.ts", "**/*.tsx", "**/package.json"]
+---
+
+# Project Structure
+
+This is an **npm workspaces monorepo** with three packages:
+
+```
+cam-gesture-experiment/
+├── packages/
+│   ├── shared/     # @block-game/shared - Types, protocol, constants
+│   ├── server/     # @block-game/server - WebSocket game server
+│   └── client/     # @block-game/client - Vite + TypeScript client
+└── package.json    # Workspace root
+```
+
+## Package Dependencies
+
+```mermaid
+graph TD
+    Server["@block-game/server"]
+    Client["@block-game/client"]
+    Shared["@block-game/shared"]
+    
+    Server --> Shared
+    Client --> Shared
+```
+
+## Key Commands
+
+Run from workspace root:
+
+```bash
+# Build shared package first (required before other builds)
+npm run build:shared
+
+# Typecheck all packages
+npm run typecheck
+
+# Run all tests
+npm run test
+
+# Full validation (build + typecheck + test)
+npm run validate
+
+# Development
+npm run dev:server    # Start server with hot reload
+npm run dev:client    # Start Vite dev server
+
+# Run bot
+npm run bot
+```
+
+## Adding Dependencies
+
+Always specify the workspace when adding dependencies:
+
+```bash
+# Add to specific package
+npm install <package> -w @block-game/server
+npm install <package> -w @block-game/client
+
+# Add dev dependency
+npm install -D <package> -w @block-game/shared
+```
+
+## Cross-Package Imports
+
+Import from the shared package using the package name:
+
+```typescript
+// In server or client code
+import { Position, Block, ServerMessage } from '@block-game/shared';
+import { parseClientMessage } from '@block-game/shared';
+```
+
+Never use relative paths to import across packages.
+
+## Build Order
+
+When building the full project:
+
+1. `@block-game/shared` must build first
+2. Then `@block-game/server` and `@block-game/client` can build in parallel
+
+The root `validate` script handles this automatically.
