@@ -178,8 +178,13 @@ export class GameManager {
       projectileSize: PROJECTILE_SIZE,
     });
 
-    // Notify other player if exists
-    this.broadcastToOthers(ws, { type: 'opponent_joined' });
+    // Get the new player's blocks to send to existing players
+    const newPlayerBlocks = this.state
+      .getBlocksArray()
+      .filter((block) => block.ownerId === playerId);
+
+    // Notify other player if exists, including new player's blocks
+    this.broadcastToOthers(ws, { type: 'opponent_joined', blocks: newPlayerBlocks });
   }
 
   handleDisconnection(ws: WebSocket): void {

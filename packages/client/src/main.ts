@@ -8,6 +8,7 @@ import { GestureDetector, HandTracker, HandVisualizer } from './input/index.js';
 import { GameClient } from './network/index.js';
 import { BlockRenderer, EffectsManager, RoomRenderer, SceneManager } from './scene/index.js';
 import type {
+  Block,
   ConnectionState,
   GameInitData,
   HandLandmarks,
@@ -147,9 +148,16 @@ class Game {
     this.initHandTracking();
   }
 
-  private handleOpponentJoined(): void {
+  private handleOpponentJoined(blocks: Block[]): void {
     this.opponentConnected = true;
     this.statusDisplay.updateConnectionStatus('connected', 'Opponent joined!');
+
+    // Add opponent's blocks if we don't have them yet (they joined after us)
+    for (const block of blocks) {
+      if (!this.blockRenderer.getBlock(block.id)) {
+        this.blockRenderer.createBlock(block);
+      }
+    }
   }
 
   private handleOpponentLeft(): void {

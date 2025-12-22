@@ -141,6 +141,7 @@ export const WelcomeMessage = z.object({
  */
 export const OpponentJoinedMessage = z.object({
   type: z.literal('opponent_joined'),
+  blocks: z.array(BlockSchema),
 });
 
 /**

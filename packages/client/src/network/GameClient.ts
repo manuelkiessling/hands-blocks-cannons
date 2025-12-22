@@ -2,7 +2,7 @@
  * @fileoverview WebSocket client for game server communication.
  */
 
-import type { ServerMessage } from '@block-game/shared';
+import type { Block, ServerMessage } from '@block-game/shared';
 import type { ConnectionState, GameInitData, Position } from '../types.js';
 
 /**
@@ -14,7 +14,7 @@ export interface GameClientEvents {
   /** Called when welcome message is received */
   onWelcome?: (data: GameInitData) => void;
   /** Called when opponent joins */
-  onOpponentJoined?: () => void;
+  onOpponentJoined?: (blocks: Block[]) => void;
   /** Called when opponent leaves */
   onOpponentLeft?: () => void;
   /** Called when opponent grabs a block */
@@ -178,7 +178,7 @@ export class GameClient {
         break;
 
       case 'opponent_joined':
-        this.events.onOpponentJoined?.();
+        this.events.onOpponentJoined?.(message.blocks);
         break;
 
       case 'opponent_left':

@@ -16,6 +16,12 @@ const config = {
   moveDuration: Number(process.env['BOT_MOVE_DURATION']) || 1500,
   // biome-ignore lint/complexity/useLiteralKeys: TS noPropertyAccessFromIndexSignature
   moveRange: Number(process.env['BOT_MOVE_RANGE']) || 3,
+
+  // AI configuration
+  // biome-ignore lint/complexity/useLiteralKeys: TS noPropertyAccessFromIndexSignature
+  useAI: process.env['BOT_USE_AI'] !== 'false', // Default: true
+  // biome-ignore lint/complexity/useLiteralKeys: TS noPropertyAccessFromIndexSignature
+  difficulty: Number(process.env['BOT_DIFFICULTY']) || 0.5, // 0-1 scale
 };
 
 logger.info('Starting bot player', { serverUrl, config });
