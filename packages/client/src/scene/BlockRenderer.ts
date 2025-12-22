@@ -4,17 +4,27 @@
  */
 
 import * as THREE from 'three';
-import type { Block, BlockEntity, Projectile, ProjectileEntity } from '../types.js';
 import { BLOCK_FLOAT_AMPLITUDE, HIGHLIGHT_COLORS } from '../constants.js';
+import type { Block, BlockEntity, Projectile, ProjectileEntity } from '../types.js';
 
 /**
  * Manages block and projectile meshes in the scene.
  */
 export class BlockRenderer {
   private readonly scene: THREE.Scene;
-  private readonly blocks: Map<string, BlockEntity> = new Map();
-  private readonly projectiles: Map<string, ProjectileEntity> = new Map();
+  private readonly _blocks: Map<string, BlockEntity> = new Map();
+  private readonly _projectiles: Map<string, ProjectileEntity> = new Map();
   private readonly myBlockIds: Set<string> = new Set();
+
+  /** Read-only access to blocks collection */
+  get blocks(): ReadonlyMap<string, BlockEntity> {
+    return this._blocks;
+  }
+
+  /** Read-only access to projectiles collection */
+  get projectiles(): ReadonlyMap<string, ProjectileEntity> {
+    return this._projectiles;
+  }
 
   // Highlights
   private readonly reachableHighlight: THREE.LineSegments;
@@ -94,11 +104,7 @@ export class BlockRenderer {
     });
 
     const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(
-      blockData.position.x,
-      blockData.position.y,
-      blockData.position.z
-    );
+    mesh.position.set(blockData.position.x, blockData.position.y, blockData.position.z);
 
     // Orient cannon to point towards enemy
     if (isCannon && this.playerNumber) {
@@ -114,7 +120,7 @@ export class BlockRenderer {
     };
 
     this.scene.add(mesh);
-    this.blocks.set(blockData.id, entity);
+    this._blocks.set(blockData.id, entity);
 
     if (isMyBlock) {
       this.myBlockIds.add(blockData.id);
@@ -147,7 +153,7 @@ export class BlockRenderer {
     };
 
     this.scene.add(mesh);
-    this.projectiles.set(projectileData.id, entity);
+    this._projectiles.set(projectileData.id, entity);
 
     return entity;
   }
@@ -156,7 +162,7 @@ export class BlockRenderer {
    * Update a block's position.
    */
   updateBlockPosition(blockId: string, position: { x: number; y: number; z: number }): void {
-    const entity = this.blocks.get(blockId);
+    const entity = this._blocks.get(blockId);
     if (entity) {
       entity.mesh.position.set(position.x, position.y, position.z);
       entity.baseY = position.y;
@@ -170,7 +176,7 @@ export class BlockRenderer {
     projectileId: string,
     position: { x: number; y: number; z: number }
   ): void {
-    const entity = this.projectiles.get(projectileId);
+    const entity = this._projectiles.get(projectileId);
     if (entity) {
       entity.mesh.position.set(position.x, position.y, position.z);
     }
@@ -180,14 +186,14 @@ export class BlockRenderer {
    * Remove a block from the scene.
    */
   removeBlock(blockId: string): void {
-    const entity = this.blocks.get(blockId);
+    const entity = this._blocks.get(blockId);
     if (entity) {
       this.scene.remove(entity.mesh);
       entity.mesh.geometry.dispose();
       if (entity.mesh.material instanceof THREE.Material) {
         entity.mesh.material.dispose();
       }
-      this.blocks.delete(blockId);
+      this._blocks.delete(blockId);
       this.myBlockIds.delete(blockId);
     }
   }
@@ -196,14 +202,14 @@ export class BlockRenderer {
    * Remove a projectile from the scene.
    */
   removeProjectile(projectileId: string): void {
-    const entity = this.projectiles.get(projectileId);
+    const entity = this._projectiles.get(projectileId);
     if (entity) {
       this.scene.remove(entity.mesh);
       entity.mesh.geometry.dispose();
       if (entity.mesh.material instanceof THREE.Material) {
         entity.mesh.material.dispose();
       }
-      this.projectiles.delete(projectileId);
+      this._projectiles.delete(projectileId);
     }
   }
 
@@ -211,7 +217,7 @@ export class BlockRenderer {
    * Mark a block as grabbed.
    */
   setBlockGrabbed(blockId: string, isGrabbed: boolean): void {
-    const entity = this.blocks.get(blockId);
+    const entity = this._blocks.get(blockId);
     if (entity) {
       entity.isGrabbed = isGrabbed;
       if (isGrabbed && !this.myBlockIds.has(blockId)) {
@@ -265,7 +271,7 @@ export class BlockRenderer {
    * Update floating animations for all blocks.
    */
   updateAnimations(elapsedTime: number, grabbedBlockId: string | null): void {
-    for (const [id, entity] of this.blocks) {
+    for (const [id, entity] of this._blocks) {
       if (id !== grabbedBlockId && !entity.isGrabbed) {
         // Gentle floating animation
         entity.mesh.position.y =
@@ -275,7 +281,7 @@ export class BlockRenderer {
 
     // Update opponent grab highlight position
     if (this.opponentGrabHighlight.visible) {
-      for (const entity of this.blocks.values()) {
+      for (const entity of this._blocks.values()) {
         if (entity.isGrabbed && !this.myBlockIds.has(entity.data.id)) {
           this.opponentGrabHighlight.position.copy(entity.mesh.position);
           break;
@@ -288,7 +294,7 @@ export class BlockRenderer {
    * Get a block entity by ID.
    */
   getBlock(blockId: string): BlockEntity | undefined {
-    return this.blocks.get(blockId);
+    return this._blocks.get(blockId);
   }
 
   /**
@@ -316,7 +322,7 @@ export class BlockRenderer {
     let nearest: BlockEntity | null = null;
     let nearestDist = maxDistance;
 
-    for (const [blockId, entity] of this.blocks) {
+    for (const [blockId, entity] of this._blocks) {
       if (onlyMyBlocks && !this.myBlockIds.has(blockId)) continue;
 
       const dx = entity.mesh.position.x - point.x;
@@ -336,7 +342,7 @@ export class BlockRenderer {
    * Remove all blocks belonging to a player.
    */
   removePlayerBlocks(ownerId: string): void {
-    for (const [blockId, entity] of this.blocks) {
+    for (const [blockId, entity] of this._blocks) {
       if (entity.data.ownerId === ownerId) {
         this.removeBlock(blockId);
       }
@@ -347,7 +353,7 @@ export class BlockRenderer {
    * Remove all projectiles belonging to a player.
    */
   removePlayerProjectiles(ownerId: string): void {
-    for (const [projId, entity] of this.projectiles) {
+    for (const [projId, entity] of this._projectiles) {
       if (entity.data.ownerId === ownerId) {
         this.removeProjectile(projId);
       }
@@ -358,10 +364,10 @@ export class BlockRenderer {
    * Clear all blocks and projectiles.
    */
   clear(): void {
-    for (const blockId of [...this.blocks.keys()]) {
+    for (const blockId of [...this._blocks.keys()]) {
       this.removeBlock(blockId);
     }
-    for (const projId of [...this.projectiles.keys()]) {
+    for (const projId of [...this._projectiles.keys()]) {
       this.removeProjectile(projId);
     }
     this.myBlockIds.clear();
@@ -379,4 +385,3 @@ export class BlockRenderer {
     this.scene.remove(this.opponentGrabHighlight);
   }
 }
-

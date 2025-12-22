@@ -3,4 +3,3 @@
  */
 
 export { StatusDisplay } from './StatusDisplay.js';
-

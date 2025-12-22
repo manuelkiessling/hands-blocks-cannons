@@ -91,4 +91,3 @@ export const EXPLOSION_DURATION_MS = 1000;
  * Number of particles in explosion effect.
  */
 export const EXPLOSION_PARTICLE_COUNT = 20;
-

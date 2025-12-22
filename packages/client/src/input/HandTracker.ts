@@ -2,10 +2,10 @@
  * @fileoverview MediaPipe hand tracking initialization and management.
  */
 
-import { Hands } from '@mediapipe/hands';
 import { Camera } from '@mediapipe/camera_utils';
-import type { HandLandmarks } from '../types.js';
+import { Hands } from '@mediapipe/hands';
 import { MEDIAPIPE } from '../constants.js';
+import type { HandLandmarks } from '../types.js';
 
 /**
  * Callback for when hand landmarks are detected.
@@ -105,4 +105,3 @@ export class HandTracker {
     return this.isRunning;
   }
 }
-

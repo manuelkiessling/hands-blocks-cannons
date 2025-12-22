@@ -5,6 +5,17 @@
 import type { ConnectionState, HandState } from '../types.js';
 
 /**
+ * Get a required DOM element by ID, throwing if not found.
+ */
+function getRequiredElement(id: string): HTMLElement {
+  const element = document.getElementById(id);
+  if (!element) {
+    throw new Error(`Required DOM element not found: #${id}`);
+  }
+  return element;
+}
+
+/**
  * Manages status displays in the DOM.
  */
 export class StatusDisplay {
@@ -15,11 +26,11 @@ export class StatusDisplay {
   private readonly fallbackElement: HTMLElement;
 
   constructor() {
-    this.statusElement = document.getElementById('status')!;
-    this.connectionElement = document.getElementById('connection-status')!;
-    this.playerInfoElement = document.getElementById('player-info')!;
-    this.serverConfigElement = document.getElementById('server-config')!;
-    this.fallbackElement = document.getElementById('fallback')!;
+    this.statusElement = getRequiredElement('status');
+    this.connectionElement = getRequiredElement('connection-status');
+    this.playerInfoElement = getRequiredElement('player-info');
+    this.serverConfigElement = getRequiredElement('server-config');
+    this.fallbackElement = getRequiredElement('fallback');
   }
 
   /**
@@ -38,11 +49,7 @@ export class StatusDisplay {
     opponentConnected: boolean
   ): void {
     const stateText =
-      handState === 'outside'
-        ? ' (OUT OF BOUNDS)'
-        : handState === 'warning'
-          ? ' (near edge)'
-          : '';
+      handState === 'outside' ? ' (OUT OF BOUNDS)' : handState === 'warning' ? ' (near edge)' : '';
     const opponentText = opponentConnected ? '' : ' [waiting for opponent]';
     this.statusElement.textContent = interactionStatus + stateText + opponentText;
   }
@@ -97,8 +104,8 @@ export class StatusDisplay {
    * Set up connect button handler.
    */
   setupConnectButton(onConnect: (url: string) => void): void {
-    const connectBtn = document.getElementById('connect-btn')!;
-    const serverUrlInput = document.getElementById('server-url') as HTMLInputElement;
+    const connectBtn = getRequiredElement('connect-btn');
+    const serverUrlInput = getRequiredElement('server-url') as HTMLInputElement;
 
     const handleConnect = (): void => {
       onConnect(serverUrlInput.value);
@@ -112,4 +119,3 @@ export class StatusDisplay {
     });
   }
 }
-

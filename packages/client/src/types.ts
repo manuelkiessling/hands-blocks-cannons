@@ -2,8 +2,8 @@
  * @fileoverview Client-specific type definitions.
  */
 
-import type * as THREE from 'three';
 import type { Block, Projectile, RoomBounds, WallGridConfig } from '@block-game/shared';
+import type * as THREE from 'three';
 
 // Re-export shared types for convenience
 export type {
@@ -106,4 +106,3 @@ export interface GameInitData {
  * Connection state.
  */
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
-

@@ -3,74 +3,72 @@
  * Re-exports all types, protocol definitions, and constants.
  */
 
-// Types
-export type {
-  PlayerId,
-  BlockId,
-  ProjectileId,
-  PlayerNumber,
-  BlockType,
-  Position,
-  Velocity,
-  Block,
-  Projectile,
-  Player,
-  RoomBounds,
-  WallGridConfig,
-  DestroyedBlockInfo,
-  WallHitInfo,
-} from './types/index.js';
-
-// Protocol
-export {
-  // Schemas
-  PositionSchema,
-  BlockTypeSchema,
-  BlockSchema,
-  ProjectileSchema,
-  RoomBoundsSchema,
-  WallGridConfigSchema,
-  // Client messages
-  JoinGameMessage,
-  BlockGrabMessage,
-  BlockMoveMessage,
-  BlockReleaseMessage,
-  CannonFireMessage,
-  ClientMessage,
-  // Server messages
-  WelcomeMessage,
-  OpponentJoinedMessage,
-  OpponentLeftMessage,
-  BlockGrabbedMessage,
-  BlockMovedMessage,
-  BlockReleasedMessage,
-  ErrorMessage,
-  ProjectileSpawnedMessage,
-  ProjectilesUpdateMessage,
-  ProjectileDestroyedMessage,
-  BlockDestroyedMessage,
-  WallHitMessage,
-  ServerMessage,
-  // Utilities
-  parseClientMessage,
-  serializeServerMessage,
-  isMessageType,
-} from './protocol/index.js';
-
 // Constants
 export {
   BLOCK_COLORS,
-  CANNON_COLOR,
-  PROJECTILE_COLOR,
-  HAND_COLORS,
-  HIGHLIGHT_COLORS,
-  CAMERA_MARGIN,
-  PINCH_THRESHOLD,
-  EDGE_THRESHOLD,
-  BLOCK_REACH_DISTANCE,
-  POSITION_SEND_THROTTLE_MS,
   BLOCK_FLOAT_AMPLITUDE,
+  BLOCK_REACH_DISTANCE,
+  CAMERA_MARGIN,
+  CANNON_COLOR,
+  EDGE_THRESHOLD,
   EXPLOSION_DURATION_MS,
   EXPLOSION_PARTICLE_COUNT,
+  HAND_COLORS,
+  HIGHLIGHT_COLORS,
+  PINCH_THRESHOLD,
+  POSITION_SEND_THROTTLE_MS,
+  PROJECTILE_COLOR,
 } from './constants.js';
 
+// Protocol
+export {
+  BlockDestroyedMessage,
+  BlockGrabbedMessage,
+  BlockGrabMessage,
+  BlockMovedMessage,
+  BlockMoveMessage,
+  BlockReleasedMessage,
+  BlockReleaseMessage,
+  BlockSchema,
+  BlockTypeSchema,
+  CannonFireMessage,
+  ClientMessage,
+  ErrorMessage,
+  isMessageType,
+  // Client messages
+  JoinGameMessage,
+  OpponentJoinedMessage,
+  OpponentLeftMessage,
+  // Schemas
+  PositionSchema,
+  ProjectileDestroyedMessage,
+  ProjectileSchema,
+  ProjectileSpawnedMessage,
+  ProjectilesUpdateMessage,
+  // Utilities
+  parseClientMessage,
+  RoomBoundsSchema,
+  ServerMessage,
+  serializeServerMessage,
+  WallGridConfigSchema,
+  WallHitMessage,
+  // Server messages
+  WelcomeMessage,
+} from './protocol/index.js';
+// Types
+export type {
+  Block,
+  BlockId,
+  BlockType,
+  DestroyedBlockInfo,
+  Player,
+  PlayerId,
+  PlayerNumber,
+  Position,
+  Projectile,
+  ProjectileId,
+  RoomBounds,
+  Velocity,
+  WallGridConfig,
+  WallHitInfo,
+} from './types/index.js';

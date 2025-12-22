@@ -2,11 +2,11 @@
  * @fileoverview Manages player interaction with blocks (grab, move, release).
  */
 
-import * as THREE from 'three';
-import type { BlockEntity } from '../types.js';
-import type { BlockRenderer } from '../scene/BlockRenderer.js';
-import type { GameClient } from '../network/GameClient.js';
+import type * as THREE from 'three';
 import { ANIMATION, BLOCK_REACH_DISTANCE, POSITION_SEND_THROTTLE_MS } from '../constants.js';
+import type { GameClient } from '../network/GameClient.js';
+import type { BlockRenderer } from '../scene/BlockRenderer.js';
+import type { BlockEntity } from '../types.js';
 
 /**
  * Manages block interaction state and logic.
@@ -30,10 +30,7 @@ export class InteractionManager {
    * @param isPinching - Whether the hand is in a pinch gesture
    * @returns Status text describing the current interaction state
    */
-  processInteraction(
-    pinchPoint: THREE.Vector3 | null,
-    isPinching: boolean
-  ): string {
+  processInteraction(pinchPoint: THREE.Vector3 | null, isPinching: boolean): string {
     // No hand detected
     if (!pinchPoint) {
       if (this.grabbedBlock) {
@@ -114,10 +111,7 @@ export class InteractionManager {
     this.reachableBlock = nearest;
 
     if (nearest) {
-      this.blockRenderer.showReachableHighlight(
-        nearest.mesh.position,
-        nearest.mesh.rotation
-      );
+      this.blockRenderer.showReachableHighlight(nearest.mesh.position, nearest.mesh.rotation);
     } else {
       this.blockRenderer.hideReachableHighlight();
     }
@@ -161,4 +155,3 @@ export class InteractionManager {
     this.blockRenderer.hideGrabbedHighlight();
   }
 }
-

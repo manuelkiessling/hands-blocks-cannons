@@ -3,12 +3,20 @@
  */
 
 import * as THREE from 'three';
-import { SceneManager, RoomRenderer, BlockRenderer, EffectsManager } from './scene/index.js';
-import { HandTracker, GestureDetector, HandVisualizer } from './input/index.js';
-import { GameClient } from './network/index.js';
 import { InteractionManager } from './game/index.js';
+import { GestureDetector, HandTracker, HandVisualizer } from './input/index.js';
+import { GameClient } from './network/index.js';
+import { BlockRenderer, EffectsManager, RoomRenderer, SceneManager } from './scene/index.js';
+import type {
+  ConnectionState,
+  GameInitData,
+  HandLandmarks,
+  HandState,
+  Position,
+  RoomBounds,
+  WallGridConfig,
+} from './types.js';
 import { StatusDisplay } from './ui/index.js';
-import type { ConnectionState, GameInitData, HandLandmarks, HandState, Position, RoomBounds, WallGridConfig } from './types.js';
 
 /**
  * Main game application.
@@ -41,7 +49,10 @@ class Game {
 
   constructor() {
     // Get container element
-    const container = document.getElementById('container')!;
+    const container = document.getElementById('container');
+    if (!container) {
+      throw new Error('Required DOM element not found: #container');
+    }
     const videoElement = document.getElementById('webcam') as HTMLVideoElement;
 
     // Initialize scene
@@ -150,14 +161,14 @@ class Game {
     // Remove opponent's entities
     if (this.playerId) {
       // Remove blocks not owned by me
-      for (const blockId of [...this.blockRenderer['blocks'].keys()]) {
+      for (const blockId of [...this.blockRenderer.blocks.keys()]) {
         const entity = this.blockRenderer.getBlock(blockId);
         if (entity && entity.data.ownerId !== this.playerId) {
           this.blockRenderer.removeBlock(blockId);
         }
       }
       // Remove projectiles not owned by me
-      for (const [projId, entity] of this.blockRenderer['projectiles']) {
+      for (const [projId, entity] of this.blockRenderer.projectiles) {
         if (entity.data.ownerId !== this.playerId) {
           this.blockRenderer.removeProjectile(projId);
         }
@@ -197,7 +208,7 @@ class Game {
     }>
   ): void {
     for (const projData of projectiles) {
-      const existing = this.blockRenderer['projectiles'].get(projData.id);
+      const existing = this.blockRenderer.projectiles.get(projData.id);
       if (existing) {
         this.blockRenderer.updateProjectilePosition(projData.id, projData.position);
       } else {
@@ -287,7 +298,11 @@ class Game {
       const pinchPoint = this.gestureDetector.getPinchPoint(this.currentLandmarks);
       const isPinching = this.gestureDetector.isPinching(this.currentLandmarks);
       const status = this.interactionManager.processInteraction(pinchPoint, isPinching);
-      this.statusDisplay.updateInteractionStatus(status, this.currentHandState, this.opponentConnected);
+      this.statusDisplay.updateInteractionStatus(
+        status,
+        this.currentHandState,
+        this.opponentConnected
+      );
     }
 
     // Update animations
@@ -316,4 +331,3 @@ class Game {
 
 // Start the game
 new Game();
-

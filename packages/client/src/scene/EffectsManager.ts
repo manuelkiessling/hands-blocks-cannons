@@ -3,8 +3,15 @@
  */
 
 import * as THREE from 'three';
-import type { Explosion, ExplosionParticle, Position, RoomBounds, WallGridConfig, WallHighlight } from '../types.js';
 import { EFFECTS, EXPLOSION_DURATION_MS, EXPLOSION_PARTICLE_COUNT } from '../constants.js';
+import type {
+  Explosion,
+  ExplosionParticle,
+  Position,
+  RoomBounds,
+  WallGridConfig,
+  WallHighlight,
+} from '../types.js';
 
 /**
  * Manages visual effects like explosions and wall hit highlights.
@@ -35,10 +42,7 @@ export class EffectsManager {
       opacity: EFFECTS.DEPTH_LINE_OPACITY,
     });
     const depthLineGeo = new THREE.BufferGeometry();
-    depthLineGeo.setAttribute(
-      'position',
-      new THREE.BufferAttribute(new Float32Array(6), 3)
-    );
+    depthLineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
     this.depthLine = new THREE.Line(depthLineGeo, depthLineMat);
     this.depthLine.visible = false;
     this.scene.add(this.depthLine);
@@ -197,15 +201,16 @@ export class EffectsManager {
     const floorY = this.room.minY;
 
     // Update depth line
-    const linePositions = this.depthLine.geometry.attributes['position']?.array as Float32Array;
-    if (linePositions) {
+    const positionAttr = this.depthLine.geometry.attributes.position;
+    if (positionAttr) {
+      const linePositions = positionAttr.array as Float32Array;
       linePositions[0] = wristPos.x;
       linePositions[1] = wristPos.y;
       linePositions[2] = wristPos.z;
       linePositions[3] = wristPos.x;
       linePositions[4] = floorY;
       linePositions[5] = wristPos.z;
-      this.depthLine.geometry.attributes['position']!.needsUpdate = true;
+      positionAttr.needsUpdate = true;
       this.depthLine.visible = true;
     }
 
@@ -234,7 +239,8 @@ export class EffectsManager {
     const now = Date.now();
 
     for (let i = this.explosions.length - 1; i >= 0; i--) {
-      const explosion = this.explosions[i]!;
+      const explosion = this.explosions[i];
+      if (!explosion) continue;
       const elapsed = now - explosion.startTime;
       const progress = elapsed / explosion.duration;
 
@@ -321,4 +327,3 @@ export class EffectsManager {
     this.handShadow.geometry.dispose();
   }
 }
-

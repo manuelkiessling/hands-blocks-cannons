@@ -4,12 +4,7 @@
  */
 
 import * as THREE from 'three';
-import {
-  CAMERA,
-  LIGHT_INTENSITY,
-  SCENE_COLORS,
-  STARFIELD,
-} from '../constants.js';
+import { CAMERA, LIGHT_INTENSITY, SCENE_COLORS, STARFIELD } from '../constants.js';
 
 /**
  * Creates and manages the Three.js scene, camera, renderer, and background.
@@ -180,14 +175,16 @@ export class SceneManager {
     ];
 
     for (let i = 0; i < STARFIELD.NEBULA_COUNT; i++) {
-      const colorData = nebulaColors[i % nebulaColors.length]!;
+      const colorData = nebulaColors[i % nebulaColors.length];
+      if (!colorData) continue;
       const size = 80 + Math.random() * 120;
 
       // Create gradient texture
       const canvas = document.createElement('canvas');
       canvas.width = 128;
       canvas.height = 128;
-      const ctx = canvas.getContext('2d')!;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) continue;
 
       const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
       gradient.addColorStop(0, `rgba(255, 255, 255, ${colorData.opacity})`);
@@ -296,4 +293,3 @@ export class SceneManager {
     }
   }
 }
-

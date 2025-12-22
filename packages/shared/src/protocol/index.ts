@@ -281,4 +281,3 @@ export function isMessageType<T extends ServerMessage['type']>(
 ): message is Extract<ServerMessage, { type: T }> {
   return message.type === type;
 }
-

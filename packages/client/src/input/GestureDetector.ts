@@ -3,13 +3,8 @@
  */
 
 import * as THREE from 'three';
+import { CAMERA_MARGIN, EDGE_THRESHOLD, HAND_LANDMARKS, PINCH_THRESHOLD } from '../constants.js';
 import type { HandLandmarks, HandState, RoomBounds } from '../types.js';
-import {
-  CAMERA_MARGIN,
-  EDGE_THRESHOLD,
-  HAND_LANDMARKS,
-  PINCH_THRESHOLD,
-} from '../constants.js';
 
 /**
  * Detects gestures and converts hand positions to 3D coordinates.
@@ -126,4 +121,3 @@ export class GestureDetector {
     return new THREE.Vector3(x, y, handZ);
   }
 }
-

@@ -3,8 +3,8 @@
  */
 
 import * as THREE from 'three';
-import type { RoomBounds } from '../types.js';
 import { SCENE_COLORS } from '../constants.js';
+import type { RoomBounds } from '../types.js';
 
 /**
  * Renders the room wireframe and floor grid.
@@ -57,11 +57,7 @@ export class RoomRenderer {
     this.roomWireframe.add(glowWireframe);
 
     // Center the wireframe group
-    this.roomWireframe.position.set(
-      (minX + maxX) / 2,
-      (minY + maxY) / 2,
-      (minZ + maxZ) / 2
-    );
+    this.roomWireframe.position.set((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2);
 
     this.scene.add(this.roomWireframe);
 
@@ -73,19 +69,19 @@ export class RoomRenderer {
       SCENE_COLORS.GRID_SECONDARY
     );
     this.floorGrid.position.y = minY;
-    
+
     // Make grid transparent
     const gridMaterial = this.floorGrid.material;
     if (Array.isArray(gridMaterial)) {
-      gridMaterial.forEach((mat) => {
+      for (const mat of gridMaterial) {
         mat.transparent = true;
         mat.opacity = 0.3;
-      });
+      }
     } else {
       gridMaterial.transparent = true;
       gridMaterial.opacity = 0.3;
     }
-    
+
     this.scene.add(this.floorGrid);
   }
 
@@ -111,7 +107,9 @@ export class RoomRenderer {
       this.floorGrid.geometry.dispose();
       const material = this.floorGrid.material;
       if (Array.isArray(material)) {
-        material.forEach((mat) => mat.dispose());
+        for (const mat of material) {
+          mat.dispose();
+        }
       } else {
         material.dispose();
       }
@@ -119,4 +117,3 @@ export class RoomRenderer {
     }
   }
 }
-

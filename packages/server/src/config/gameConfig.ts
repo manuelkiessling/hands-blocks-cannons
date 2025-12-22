@@ -67,7 +67,7 @@ export function loadGameConfig(): GameConfigYaml {
     return validatedConfig;
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.error('Invalid game configuration:', error.errors);
+      console.error('Invalid game configuration:', error.issues);
       throw new Error(`Invalid game configuration: ${error.message}`);
     }
     throw error;
