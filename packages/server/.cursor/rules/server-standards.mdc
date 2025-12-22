@@ -116,6 +116,28 @@ moveBlock(blockId: string, pos: Position): void {
 }
 ```
 
+## Naming Conventions
+
+### Underscore Prefix for Backing Fields
+
+Use underscore prefix (`_`) for private properties that have a public getter:
+
+```typescript
+// Private backing field with public getter
+private readonly _blocks: Map<string, Block>;
+
+get blocks(): ReadonlyMap<string, Block> {
+  return this._blocks;
+}
+```
+
+| Pattern | Meaning |
+|---------|---------|
+| `private _foo` | Backing field with public `get foo()` accessor |
+| `private foo` | Purely private, no external access |
+
+This allows internal mutation while exposing read-only access externally.
+
 ## Handler Registry Pattern
 
 Message handlers use a registry pattern for extensibility:
