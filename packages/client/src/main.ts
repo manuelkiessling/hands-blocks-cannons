@@ -14,7 +14,6 @@ import type {
   HandState,
   Position,
   RoomBounds,
-  WallGridConfig,
 } from './types.js';
 import { StatusDisplay } from './ui/index.js';
 
@@ -38,7 +37,6 @@ class Game {
   private playerId: string | null = null;
   private playerNumber: 1 | 2 | null = null;
   private room: RoomBounds | null = null;
-  private wallGridConfig: WallGridConfig | null = null;
   private projectileSize = 0.3;
   private opponentConnected = false;
   private currentHandState: HandState = 'normal';
@@ -118,7 +116,6 @@ class Game {
     this.playerId = data.playerId;
     this.playerNumber = data.playerNumber;
     this.room = data.room;
-    this.wallGridConfig = data.wallGrid;
     this.projectileSize = data.projectileSize;
 
     // Configure systems
