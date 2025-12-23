@@ -88,23 +88,51 @@ export class GestureDetector {
   }
 
   /**
-   * Convert all landmarks to 3D positions.
+   * Convert all landmarks to 3D positions for visualization.
+   * These positions are NOT clamped to room bounds - the hand can move freely.
    */
   landmarksTo3D(landmarks: HandLandmarks): THREE.Vector3[] {
-    return landmarks.map((lm) => this.landmarkTo3D(lm));
+    return landmarks.map((lm) => this.landmarkTo3DUnclamped(lm));
   }
 
   /**
-   * Convert a single landmark to 3D position.
+   * Convert a single landmark to 3D position, clamped to room bounds.
+   * Used for interactions (grab, drag) where game logic requires staying in bounds.
    */
   private landmarkTo3D(lm: { x: number; y: number; z: number }): THREE.Vector3 {
+    return this.convertLandmarkTo3D(lm, true);
+  }
+
+  /**
+   * Convert a single landmark to 3D position without clamping.
+   * Used for visualization where the hand should move freely.
+   */
+  private landmarkTo3DUnclamped(lm: { x: number; y: number; z: number }): THREE.Vector3 {
+    return this.convertLandmarkTo3D(lm, false);
+  }
+
+  /**
+   * Core coordinate conversion from camera space to 3D world space.
+   * @param lm - Landmark in camera coordinates (0-1 range)
+   * @param clamp - Whether to clamp output to room bounds
+   */
+  private convertLandmarkTo3D(
+    lm: { x: number; y: number; z: number },
+    clamp: boolean
+  ): THREE.Vector3 {
     if (!this.room || !this.playerNumber) {
       return new THREE.Vector3(0, 0, 0);
     }
 
-    // Normalize to 0-1 range within camera bounds
-    const normX = Math.max(0, Math.min(1, (lm.x - CAMERA_MARGIN) / (1 - 2 * CAMERA_MARGIN)));
-    const normY = Math.max(0, Math.min(1, (lm.y - CAMERA_MARGIN) / (1 - 2 * CAMERA_MARGIN)));
+    // Normalize to 0-1 range within camera bounds (accounting for margin)
+    let normX = (lm.x - CAMERA_MARGIN) / (1 - 2 * CAMERA_MARGIN);
+    let normY = (lm.y - CAMERA_MARGIN) / (1 - 2 * CAMERA_MARGIN);
+
+    // Only clamp for interactions, not for visualization
+    if (clamp) {
+      normX = Math.max(0, Math.min(1, normX));
+      normY = Math.max(0, Math.min(1, normY));
+    }
 
     // Map to room X/Y bounds
     // Player 1 (looking from +Z): mirror X so left hand = left on screen
