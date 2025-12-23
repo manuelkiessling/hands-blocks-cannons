@@ -1,0 +1,44 @@
+# Docker Compose for Hands, Blocks & Cannons
+# 
+# This file is for PRODUCTION deployment on the Ubuntu server.
+# The lobby container is started here; game session containers are spawned dynamically.
+#
+# Prerequisites:
+# - Traefik reverse proxy running with 'outermost_router' network
+# - TLS certificates configured in Traefik
+# - DNS: hands-blocks-cannons.dx-tooling.org -> server IP
+# - DNS: *.hands-blocks-cannons.dx-tooling.org -> server IP (wildcard)
+#
+# Deployment:
+#   docker build -t hbc-game-session ./docker/game-session  # Build game image first
+#   docker compose up --build -d                             # Start lobby
+
+services:
+  lobby:
+    build:
+      context: .
+      dockerfile: docker/lobby/Dockerfile
+    container_name: hbc-lobby
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "outermost_router.enable=true"
+      - "traefik.docker.network=outermost_router"
+      - "traefik.http.routers.hbc-lobby.rule=Host(`hands-blocks-cannons.dx-tooling.org`)"
+      - "traefik.http.routers.hbc-lobby.entrypoints=websecure"
+      - "traefik.http.routers.hbc-lobby.tls=true"
+      - "traefik.http.services.hbc-lobby.loadbalancer.server.port=80"
+    volumes:
+      # Mount the docker-cli-wrapper script (read-only)
+      - ./bin/docker-cli-wrapper.sh:/app/bin/docker-cli-wrapper.sh:ro
+    networks:
+      - outermost_router
+    environment:
+      - NODE_ENV=production
+      - PORT=80
+      - DOCKER_WRAPPER_PATH=/app/bin/docker-cli-wrapper.sh
+
+networks:
+  outermost_router:
+    external: true
+

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hands, Blocks & Cannons - Game Lobby</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script type="module" crossorigin src="./assets/index-CrmjMVuS.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-BxnIRXiA.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Hands, Blocks & Cannons</h1>
+            <p class="tagline">Control blocks with your hands. Defend with cannons. Destroy your opponent.</p>
+        </header>
+
+        <main id="main-content">
+            <!-- Start Screen -->
+            <section id="start-screen" class="screen active">
+                <div class="game-modes">
+                    <button class="mode-btn" id="play-bot">
+                        <span class="mode-icon">🤖</span>
+                        <span class="mode-title">Play vs Bot</span>
+                        <span class="mode-desc">Test your skills against AI</span>
+                    </button>
+                    <button class="mode-btn" id="play-human">
+                        <span class="mode-icon">👥</span>
+                        <span class="mode-title">Play vs Human</span>
+                        <span class="mode-desc">Challenge a friend</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Bot Settings Screen -->
+            <section id="bot-settings" class="screen">
+                <h2>Bot Settings</h2>
+                <div class="setting-group">
+                    <label for="difficulty">Difficulty</label>
+                    <div class="difficulty-slider">
+                        <input type="range" id="difficulty" min="0" max="100" value="50">
+                        <div class="difficulty-labels">
+                            <span>Easy</span>
+                            <span>Medium</span>
+                            <span>Hard</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="button-group">
+                    <button class="btn secondary" id="back-from-bot">Back</button>
+                    <button class="btn primary" id="start-bot-game">Start Game</button>
+                </div>
+            </section>
+
+            <!-- Loading Screen -->
+            <section id="loading-screen" class="screen">
+                <div class="loader">
+                    <div class="spinner"></div>
+                    <p id="loading-text">Creating game session...</p>
+                </div>
+            </section>
+
+            <!-- Game Ready Screen -->
+            <section id="game-ready" class="screen">
+                <h2>Game Ready!</h2>
+                <div id="share-section" class="share-section hidden">
+                    <p>Share this link with your opponent:</p>
+                    <div class="share-url">
+                        <input type="text" id="share-url" readonly>
+                        <button class="btn icon" id="copy-url" title="Copy to clipboard">📋</button>
+                    </div>
+                    <p class="hint">Waiting for opponent to join...</p>
+                </div>
+                <div class="button-group">
+                    <button class="btn secondary" id="cancel-game">Cancel</button>
+                    <button class="btn primary" id="join-game">Join Game</button>
+                </div>
+            </section>
+
+            <!-- Error Screen -->
+            <section id="error-screen" class="screen">
+                <div class="error-content">
+                    <span class="error-icon">⚠️</span>
+                    <h2>Something went wrong</h2>
+                    <p id="error-message">An unexpected error occurred.</p>
+                    <button class="btn primary" id="try-again">Try Again</button>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>Use your webcam and hand gestures to control the game. Pinch to grab blocks!</p>
+        </footer>
+    </div>
+
+</body>
+</html>
+

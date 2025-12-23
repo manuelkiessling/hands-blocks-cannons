@@ -1,0 +1,16 @@
+# Sudoers entry for Hands, Blocks & Cannons docker-cli-wrapper
+# This allows the user running the lobby container to execute Docker commands
+# through the restricted wrapper script without a password.
+#
+# Installation:
+#   sudo install -o root -g root -m 0440 \
+#     /path/to/project/docs/infrastructure/etc/sudoers.d/hbc-docker-wrapper \
+#     /etc/sudoers.d/hbc-docker-wrapper
+#
+# The wrapper script restricts operations to:
+# - Only specific Docker commands (run, stop, rm, ps, inspect)
+# - Only containers named hbc-session-*
+# - Only the hbc-game-session image
+
+root ALL=(root) NOPASSWD: /var/www/hands-blocks-cannons/bin/docker-cli-wrapper.sh *
+

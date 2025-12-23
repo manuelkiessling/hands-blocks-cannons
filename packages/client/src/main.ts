@@ -91,8 +91,32 @@ class Game {
     // Setup UI handlers
     this.statusDisplay.setupConnectButton((url) => this.connect(url));
 
+    // Check for auto-connect (game session container)
+    const autoConnectUrl = this.getAutoConnectUrl();
+    if (autoConnectUrl) {
+      this.statusDisplay.hideServerConfig();
+      this.connect(autoConnectUrl);
+    }
+
     // Start animation loop
     this.animate();
+  }
+
+  /**
+   * Check if running in a game session container and return auto-connect URL.
+   * Returns null if manual connection is needed.
+   */
+  private getAutoConnectUrl(): string | null {
+    const hostname = window.location.hostname;
+
+    // Check if hostname matches game session pattern: {sessionId}-hands-blocks-cannons.dx-tooling.org
+    const sessionPattern = /^[a-z0-9]+-hands-blocks-cannons\.dx-tooling\.org$/;
+    if (sessionPattern.test(hostname)) {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      return `${protocol}//${hostname}/ws`;
+    }
+
+    return null;
   }
 
   /**
