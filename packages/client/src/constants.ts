@@ -151,3 +151,14 @@ export const HAND_LANDMARKS = {
   /** Total number of landmarks */
   COUNT: 21,
 } as const;
+
+// ============ Hand Visualization Constants ============
+
+export const HAND_VISUAL = {
+  /** Opacity for finger tubes (0-1) */
+  FINGER_OPACITY: 0.3,
+  /** Opacity for fingertips (0-1) */
+  TIP_OPACITY: 0.35,
+  /** Smoothing factor for hand movement (0-1). Lower = smoother, higher = more responsive */
+  SMOOTHING_FACTOR: 0.3,
+} as const;

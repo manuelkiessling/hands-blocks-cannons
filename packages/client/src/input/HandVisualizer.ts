@@ -3,28 +3,69 @@
  */
 
 import * as THREE from 'three';
-import { HAND_COLORS, HAND_LANDMARKS } from '../constants.js';
+import { HAND_COLORS, HAND_LANDMARKS, HAND_VISUAL } from '../constants.js';
 
-/** Finger paths from base to tip */
+/** Finger paths from knuckle to tip (excluding wrist for cleaner gradient) */
 const FINGER_PATHS = [
-  [0, 1, 2, 3, 4], // Thumb
-  [0, 5, 6, 7, 8], // Index
-  [0, 9, 10, 11, 12], // Middle
-  [0, 13, 14, 15, 16], // Ring
-  [0, 17, 18, 19, 20], // Pinky
+  [1, 2, 3, 4], // Thumb (CMC to tip)
+  [5, 6, 7, 8], // Index (MCP to tip)
+  [9, 10, 11, 12], // Middle
+  [13, 14, 15, 16], // Ring
+  [17, 18, 19, 20], // Pinky
 ];
 
 /** Fingertip landmark indices */
 const FINGERTIPS = [4, 8, 12, 16, 20];
 
-/** Width profile for finger segments (wider at base, narrower at tip) - doubled */
-const FINGER_WIDTH = [0.36, 0.28, 0.22, 0.18, 0.14];
+/** Width profile for finger segments (wider at base, narrower at tip) */
+const FINGER_WIDTH = [0.32, 0.26, 0.2, 0.14];
 
 /**
- * Smoothing factor for hand movement (0-1).
- * Lower = smoother but more lag, higher = more responsive but shakier.
+ * Custom shader for per-vertex opacity gradient.
  */
-const SMOOTHING_FACTOR = 0.3;
+const fingerVertexShader = `
+  attribute float opacity;
+  varying float vOpacity;
+  varying vec3 vNormal;
+  varying vec3 vViewPosition;
+
+  void main() {
+    vOpacity = opacity;
+    vNormal = normalize(normalMatrix * normal);
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    vViewPosition = -mvPosition.xyz;
+    gl_Position = projectionMatrix * mvPosition;
+  }
+`;
+
+const fingerFragmentShader = `
+  uniform vec3 color;
+  uniform vec3 emissive;
+  uniform float emissiveIntensity;
+  uniform float baseOpacity;
+
+  varying float vOpacity;
+  varying vec3 vNormal;
+  varying vec3 vViewPosition;
+
+  void main() {
+    // Simple lighting
+    vec3 normal = normalize(vNormal);
+    vec3 viewDir = normalize(vViewPosition);
+    
+    // Ambient + diffuse approximation
+    float diffuse = max(dot(normal, vec3(0.5, 0.7, 0.5)), 0.0);
+    vec3 lighting = color * (0.4 + 0.6 * diffuse);
+    
+    // Add emissive
+    vec3 finalColor = lighting + emissive * emissiveIntensity;
+    
+    // Apply per-vertex opacity with base opacity
+    float finalOpacity = vOpacity * baseOpacity;
+    
+    gl_FragColor = vec4(finalColor, finalOpacity);
+  }
+`;
 
 /**
  * Renders a volumetric hand with translucent finger tubes.
@@ -39,7 +80,6 @@ export class HandVisualizer {
   private readonly fingertipMeshes: THREE.Mesh[] = [];
 
   // Shared materials
-  private readonly fingerMaterial: THREE.MeshStandardMaterial;
   private readonly tipMaterial: THREE.MeshStandardMaterial;
 
   // Smoothed positions for rendering (reduces shakiness)
@@ -48,44 +88,44 @@ export class HandVisualizer {
   constructor(scene: THREE.Scene) {
     this.scene = scene;
 
-    // Create translucent finger material
-    this.fingerMaterial = new THREE.MeshStandardMaterial({
-      color: HAND_COLORS.NORMAL,
-      emissive: HAND_COLORS.NORMAL,
-      emissiveIntensity: 0.25,
-      transparent: true,
-      opacity: 0.6,
-      roughness: 0.4,
-      metalness: 0.0,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    });
-
     // Create fingertip material (brighter glow)
     this.tipMaterial = new THREE.MeshStandardMaterial({
       color: HAND_COLORS.NORMAL,
       emissive: HAND_COLORS.NORMAL,
       emissiveIntensity: 0.5,
       transparent: true,
-      opacity: 0.7,
+      opacity: HAND_VISUAL.TIP_OPACITY,
       roughness: 0.2,
       metalness: 0.0,
     });
 
-    // Create finger tube meshes
+    // Create finger tube meshes with custom shader material
+    const handColor = new THREE.Color(HAND_COLORS.NORMAL);
     for (let i = 0; i < FINGER_PATHS.length; i++) {
-      // Create a tube geometry placeholder (will be updated each frame)
       const geometry = new THREE.BufferGeometry();
-      const mesh = new THREE.Mesh(geometry, this.fingerMaterial.clone());
+      const material = new THREE.ShaderMaterial({
+        uniforms: {
+          color: { value: handColor },
+          emissive: { value: handColor },
+          emissiveIntensity: { value: 0.25 },
+          baseOpacity: { value: HAND_VISUAL.FINGER_OPACITY },
+        },
+        vertexShader: fingerVertexShader,
+        fragmentShader: fingerFragmentShader,
+        transparent: true,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      });
+      const mesh = new THREE.Mesh(geometry, material);
       mesh.visible = false;
       mesh.renderOrder = 1;
       this.scene.add(mesh);
       this.fingerMeshes.push(mesh);
     }
 
-    // Create fingertip meshes (doubled size)
+    // Create fingertip meshes
     for (let i = 0; i < FINGERTIPS.length; i++) {
-      const geometry = new THREE.SphereGeometry(FINGER_WIDTH[4] ?? 0.14, 12, 12);
+      const geometry = new THREE.SphereGeometry(FINGER_WIDTH[3] ?? 0.14, 12, 12);
       const mesh = new THREE.Mesh(geometry, this.tipMaterial.clone());
       mesh.visible = false;
       mesh.renderOrder = 2;
@@ -159,7 +199,7 @@ export class HandVisualizer {
       const smoothed = this.smoothedPositions[i];
 
       if (target && smoothed) {
-        smoothed.lerp(target, SMOOTHING_FACTOR);
+        smoothed.lerp(target, HAND_VISUAL.SMOOTHING_FACTOR);
       } else if (target && !smoothed) {
         this.smoothedPositions[i] = target.clone();
       }
@@ -169,7 +209,7 @@ export class HandVisualizer {
   }
 
   /**
-   * Create a smooth tube along finger path with variable width.
+   * Create a smooth tube along finger path with variable width and opacity gradient.
    */
   private updateFingerTube(mesh: THREE.Mesh, points: THREE.Vector3[], fingerIndex: number): void {
     if (points.length < 2) return;
@@ -183,6 +223,7 @@ export class HandVisualizer {
 
     const tubularPoints: THREE.Vector3[] = [];
     const radiusValues: number[] = [];
+    const opacityValues: number[] = [];
 
     for (let i = 0; i <= segments; i++) {
       const t = i / segments;
@@ -202,18 +243,27 @@ export class HandVisualizer {
       // Thumb is slightly thicker
       const thumbMultiplier = fingerIndex === 0 ? 1.2 : 1.0;
       radiusValues.push(radius * thumbMultiplier);
+
+      // Opacity gradient: nearly transparent at base (t=0), full at tip (t=1)
+      // Use ease-in curve for more gradual fade
+      const opacityT = t * t; // Quadratic ease-in
+      const minOpacity = 0.05; // Nearly transparent at base
+      const maxOpacity = 1.0; // Full opacity at tip
+      opacityValues.push(minOpacity + (maxOpacity - minOpacity) * opacityT);
     }
 
     // Build tube geometry manually for variable radius
     const positions: number[] = [];
     const normals: number[] = [];
+    const opacities: number[] = [];
     const indices: number[] = [];
 
     for (let i = 0; i < tubularPoints.length; i++) {
       const point = tubularPoints[i];
       const radius = radiusValues[i];
+      const opacity = opacityValues[i];
 
-      if (!point || radius === undefined) continue;
+      if (!point || radius === undefined || opacity === undefined) continue;
 
       // Get tangent direction
       let tangent: THREE.Vector3;
@@ -254,6 +304,7 @@ export class HandVisualizer {
 
         positions.push(point.x + nx * radius, point.y + ny * radius, point.z + nz * radius);
         normals.push(nx, ny, nz);
+        opacities.push(opacity);
       }
     }
 
@@ -270,10 +321,11 @@ export class HandVisualizer {
       }
     }
 
-    // Update geometry
+    // Update geometry with opacity attribute
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+    geometry.setAttribute('opacity', new THREE.Float32BufferAttribute(opacities, 1));
     geometry.setIndex(indices);
 
     // Dispose old geometry and assign new one
@@ -309,7 +361,6 @@ export class HandVisualizer {
       (mesh.material as THREE.Material).dispose();
     }
 
-    this.fingerMaterial.dispose();
     this.tipMaterial.dispose();
   }
 }
