@@ -160,9 +160,10 @@ function handleBlockMove(
   }
 
   const { state: newState, pushedBlocks } = state.moveBlock(blockId, position);
+  const resolvedMoverPos = newState.getBlock(blockId)?.position ?? position;
 
   const responses: MessageResponse[] = [
-    createBlockMovedResponse('opponent', context.playerId, blockId, position),
+    createBlockMovedResponse('opponent', context.playerId, blockId, resolvedMoverPos),
   ];
 
   // Broadcast pushed blocks to ALL players (including the mover)

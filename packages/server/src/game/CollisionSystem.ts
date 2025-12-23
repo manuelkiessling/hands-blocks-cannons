@@ -133,33 +133,87 @@ function resolveBlockCollisionsRecursive(
   const movedBlock = blocks.get(movedBlockId);
   if (!movedBlock) return;
 
-  for (const [otherId, otherBlock] of blocks) {
-    // Skip self
-    if (otherId === movedBlockId) continue;
+  let currentMovedPos = movedPos;
 
-    // Check collision
-    if (!blocksCollide(movedPos, otherBlock.position)) continue;
-
-    // Calculate push direction and apply
-    const pushVector = calculatePushVector(movedPos, otherBlock.position);
-    const pushedPos = clampToRoom(
-      {
-        x: otherBlock.position.x + pushVector.x,
-        y: otherBlock.position.y + pushVector.y,
-        z: otherBlock.position.z + pushVector.z,
-      },
-      room
-    );
-
-    // Update the pushed block
-    const pushedBlock: Block = {
-      ...otherBlock,
-      position: pushedPos,
+  const updateMovedBlock = (newPos: Position) => {
+    const updated: Block = {
+      ...movedBlock,
+      position: newPos,
     };
-    blocks.set(otherId, pushedBlock);
+    blocks.set(movedBlockId, updated);
+    currentMovedPos = newPos;
+  };
 
-    // Recursively resolve any new collisions caused by the push
-    resolveBlockCollisionsRecursive(blocks, otherId, pushedPos, room, depth + 1, maxDepth);
+  // We may need multiple passes if the moved block gets repositioned to avoid overlap.
+  let restart = true;
+  while (restart) {
+    restart = false;
+
+    for (const [otherId, otherBlock] of blocks) {
+      // Skip self
+      if (otherId === movedBlockId) continue;
+
+      // Check collision
+      if (!blocksCollide(currentMovedPos, otherBlock.position)) continue;
+
+      // Calculate push direction and apply to the other block
+      const pushVector = calculatePushVector(currentMovedPos, otherBlock.position);
+      const pushedPos = clampToRoom(
+        {
+          x: otherBlock.position.x + pushVector.x,
+          y: otherBlock.position.y + pushVector.y,
+          z: otherBlock.position.z + pushVector.z,
+        },
+        room
+      );
+
+      // Update the pushed block
+      const pushedBlock: Block = {
+        ...otherBlock,
+        position: pushedPos,
+      };
+      blocks.set(otherId, pushedBlock);
+
+      const otherWasMoved =
+        pushedPos.x !== otherBlock.position.x ||
+        pushedPos.y !== otherBlock.position.y ||
+        pushedPos.z !== otherBlock.position.z;
+
+      // Recursively resolve any new collisions caused by the push
+      if (otherWasMoved) {
+        resolveBlockCollisionsRecursive(blocks, otherId, pushedPos, room, depth + 1, maxDepth);
+      }
+
+      // If the other block could not be displaced enough (e.g., pinned to wall),
+      // pull the moved block back to the contact point along the push axis.
+      if (blocksCollide(currentMovedPos, pushedPos)) {
+        const axis: keyof Position = pushVector.x !== 0 ? 'x' : pushVector.y !== 0 ? 'y' : 'z';
+
+        const overlap = BLOCK_HALF_SIZE * 2 - Math.abs(currentMovedPos[axis] - pushedPos[axis]);
+
+        if (overlap > 0) {
+          const direction = Math.sign(pushVector[axis]) || 1;
+          const adjustedPos = clampToRoom(
+            {
+              ...currentMovedPos,
+              [axis]: currentMovedPos[axis] - direction * overlap,
+            },
+            room
+          );
+
+          // Only restart if the moved block actually changed
+          if (
+            adjustedPos.x !== currentMovedPos.x ||
+            adjustedPos.y !== currentMovedPos.y ||
+            adjustedPos.z !== currentMovedPos.z
+          ) {
+            updateMovedBlock(adjustedPos);
+            restart = true;
+            break;
+          }
+        }
+      }
+    }
   }
 }
 

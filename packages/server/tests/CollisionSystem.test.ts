@@ -7,6 +7,7 @@ import {
   resolveBlockCollisions,
 } from '../src/game/CollisionSystem.js';
 import type { Block, Position } from '../src/game/types.js';
+import { BLOCK_HALF_SIZE } from '../src/game/types.js';
 
 describe('CollisionSystem', () => {
   describe('blocksCollide', () => {
@@ -105,6 +106,98 @@ describe('CollisionSystem', () => {
 
       const updated2 = blocks.get('block-2');
       expect(updated2?.position.x).toBeGreaterThan(0.5);
+    });
+
+    it('should stop mover when pushing a block pinned to the wall', () => {
+      const room = { minX: -1, maxX: 1, minY: -1, maxY: 1, minZ: -1, maxZ: 1 };
+
+      const pinned: Block = {
+        id: 'pinned',
+        position: { x: room.minX + BLOCK_HALF_SIZE, y: 0, z: 0 },
+        color: 0x00ff00,
+        ownerId: 'player-1',
+        blockType: 'regular',
+      };
+
+      const mover: Block = {
+        id: 'mover',
+        position: { x: pinned.position.x + 0.1, y: 0, z: 0 },
+        color: 0xff0000,
+        ownerId: 'player-1',
+        blockType: 'regular',
+      };
+
+      const blocks = new Map<string, Block>([
+        [pinned.id, pinned],
+        [mover.id, mover],
+      ]);
+
+      resolveBlockCollisions(blocks, mover.id, mover.position, room);
+
+      const resolvedPinned = blocks.get('pinned');
+      const resolvedMover = blocks.get('mover');
+
+      expect(resolvedPinned).toBeDefined();
+      expect(resolvedMover).toBeDefined();
+      if (!resolvedPinned || !resolvedMover) return;
+
+      expect(resolvedPinned.position.x).toBeCloseTo(room.minX + BLOCK_HALF_SIZE);
+      expect(resolvedMover.position.x).toBeCloseTo(resolvedPinned.position.x + BLOCK_HALF_SIZE * 2);
+      expect(blocksCollide(resolvedPinned.position, resolvedMover.position)).toBe(false);
+    });
+
+    it('should allow push chains when there is space near the wall', () => {
+      const room = { minX: -5, maxX: 5, minY: -1, maxY: 1, minZ: -1, maxZ: 1 };
+
+      const blockC: Block = {
+        id: 'block-c',
+        position: { x: -3.5, y: 0, z: 0 },
+        color: 0x0000ff,
+        ownerId: 'player-1',
+        blockType: 'regular',
+      };
+
+      const blockB: Block = {
+        id: 'block-b',
+        position: { x: -2.4, y: 0, z: 0 },
+        color: 0x00ff00,
+        ownerId: 'player-1',
+        blockType: 'regular',
+      };
+
+      const mover: Block = {
+        id: 'mover',
+        position: { x: -1.7, y: 0, z: 0 },
+        color: 0xff0000,
+        ownerId: 'player-1',
+        blockType: 'regular',
+      };
+
+      const blocks = new Map<string, Block>([
+        [blockC.id, blockC],
+        [blockB.id, blockB],
+        [mover.id, mover],
+      ]);
+
+      resolveBlockCollisions(blocks, mover.id, mover.position, room);
+
+      const resolvedC = blocks.get('block-c');
+      const resolvedB = blocks.get('block-b');
+      const resolvedMover = blocks.get('mover');
+
+      expect(resolvedC).toBeDefined();
+      expect(resolvedB).toBeDefined();
+      expect(resolvedMover).toBeDefined();
+      if (!resolvedC || !resolvedB || !resolvedMover) return;
+
+      expect(blocksCollide(resolvedMover.position, resolvedB.position)).toBe(false);
+      expect(blocksCollide(resolvedB.position, resolvedC.position)).toBe(false);
+
+      // Ensure pushes propagated left while staying inside room
+      expect(resolvedB.position.x).toBeLessThan(blockB.position.x);
+      expect(resolvedC.position.x).toBeLessThan(blockC.position.x);
+      expect(resolvedC.position.x).toBeGreaterThanOrEqual(room.minX + BLOCK_HALF_SIZE);
+      expect(resolvedMover.position.x).toBeCloseTo(mover.position.x);
     });
   });
 
