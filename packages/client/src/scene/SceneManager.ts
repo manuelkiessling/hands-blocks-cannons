@@ -32,8 +32,11 @@ export class SceneManager {
     this.camera.position.set(0, CAMERA.HEIGHT, 14);
     this.camera.lookAt(0, -1, 0);
 
-    // Create renderer
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    // Create renderer with logarithmic depth buffer for better z-fighting prevention
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      logarithmicDepthBuffer: true,
+    });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     container.appendChild(this.renderer.domElement);

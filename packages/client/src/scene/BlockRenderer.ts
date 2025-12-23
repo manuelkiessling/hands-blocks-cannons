@@ -107,9 +107,10 @@ export class BlockRenderer {
     const isCannon = blockData.blockType === 'cannon';
 
     // Cannon has distinct shape
+    // Regular blocks are slightly smaller than 1.0 to prevent z-fighting when adjacent
     const geometry = isCannon
       ? new THREE.BoxGeometry(0.8, 0.8, 1.5)
-      : new THREE.BoxGeometry(1, 1, 1);
+      : new THREE.BoxGeometry(0.96, 0.96, 0.96);
 
     const material = new THREE.MeshStandardMaterial({
       color: blockData.color,
@@ -117,6 +118,10 @@ export class BlockRenderer {
       opacity: isMyBlock ? 0.9 : 0.5,
       emissive: isCannon ? blockData.color : 0x000000,
       emissiveIntensity: isCannon ? 0.3 : 0,
+      // Prevent z-fighting when blocks are adjacent
+      polygonOffset: true,
+      polygonOffsetFactor: 1,
+      polygonOffsetUnits: 1,
     });
 
     const mesh = new THREE.Mesh(geometry, material);
