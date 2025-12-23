@@ -34,11 +34,6 @@ export interface HandLandmark {
 export type HandLandmarks = HandLandmark[];
 
 /**
- * Hand proximity state relative to camera bounds.
- */
-export type HandState = 'normal' | 'warning' | 'outside';
-
-/**
  * Extended block data with Three.js mesh and local state.
  */
 export interface BlockEntity {

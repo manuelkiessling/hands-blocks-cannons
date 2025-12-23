@@ -12,9 +12,6 @@ const TEST_ROOM: RoomBounds = {
   maxZ: 32,
 };
 
-// CAMERA_MARGIN from shared constants
-const CAMERA_MARGIN = 0.2;
-
 /**
  * Create hand landmarks at a specific normalized position.
  * All landmarks are placed at the same position for simplicity.
@@ -160,20 +157,6 @@ describe('GestureDetector', () => {
         expect(pinchPoint?.y).toBeCloseTo(visualPositions[4]?.y ?? 0, 1);
       });
     });
-
-    describe('getWristPosition (clamped)', () => {
-      it('should clamp wrist position to room bounds', () => {
-        const landmarks = createLandmarksAt(0.5, 0.5);
-        landmarks[0] = { x: 0, y: 0, z: 0 }; // Wrist at top-left corner
-
-        const wristPos = detector.getWristPosition(landmarks);
-
-        expect(wristPos?.x).toBeLessThanOrEqual(TEST_ROOM.maxX);
-        expect(wristPos?.x).toBeGreaterThanOrEqual(TEST_ROOM.minX);
-        expect(wristPos?.y).toBeLessThanOrEqual(TEST_ROOM.maxY);
-        expect(wristPos?.y).toBeGreaterThanOrEqual(TEST_ROOM.minY);
-      });
-    });
   });
 
   describe('Player Orientation', () => {
@@ -237,25 +220,6 @@ describe('GestureDetector', () => {
       landmarks[8] = { x: 0.7, y: 0.7, z: 0 };
 
       expect(detector.isPinching(landmarks)).toBe(false);
-    });
-  });
-
-  describe('getHandState', () => {
-    it('should return "normal" when hand is in center', () => {
-      const landmarks = createLandmarksAt(0.5, 0.5);
-      expect(detector.getHandState(landmarks)).toBe('normal');
-    });
-
-    it('should return "warning" when hand is near edge', () => {
-      // Near left edge but not outside
-      const landmarks = createLandmarksAt(CAMERA_MARGIN + 0.02, 0.5);
-      expect(detector.getHandState(landmarks)).toBe('warning');
-    });
-
-    it('should return "outside" when hand is at edge', () => {
-      // At left edge (within margin)
-      const landmarks = createLandmarksAt(CAMERA_MARGIN - 0.01, 0.5);
-      expect(detector.getHandState(landmarks)).toBe('outside');
     });
   });
 

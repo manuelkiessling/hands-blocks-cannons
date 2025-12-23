@@ -12,7 +12,6 @@ import type {
   ConnectionState,
   GameInitData,
   HandLandmarks,
-  HandState,
   Position,
   RoomBounds,
 } from './types.js';
@@ -40,7 +39,6 @@ class Game {
   private room: RoomBounds | null = null;
   private projectileSize = 0.3;
   private opponentConnected = false;
-  private currentHandState: HandState = 'normal';
   private lastFrameTime = 0;
 
   // Current hand landmarks for interaction processing
@@ -297,21 +295,12 @@ class Game {
   private processHandUpdate(landmarks: HandLandmarks | null): void {
     if (!landmarks) {
       this.handVisualizer.hide();
-      this.effectsManager.updateDepthIndicator(null);
-      this.currentHandState = 'normal';
       return;
     }
 
-    // Get hand state for visual feedback
-    this.currentHandState = this.gestureDetector.getHandState(landmarks);
-
     // Convert landmarks to 3D and update visualization
     const positions3D = this.gestureDetector.landmarksTo3D(landmarks);
-    this.handVisualizer.update(positions3D, this.currentHandState);
-
-    // Update depth indicator
-    const wristPos = this.gestureDetector.getWristPosition(landmarks);
-    this.effectsManager.updateDepthIndicator(wristPos);
+    this.handVisualizer.update(positions3D);
   }
 
   // ============ Animation Loop ============
@@ -328,11 +317,7 @@ class Game {
       const pinchPoint = this.gestureDetector.getPinchPoint(this.currentLandmarks);
       const isPinching = this.gestureDetector.isPinching(this.currentLandmarks);
       const status = this.interactionManager.processInteraction(pinchPoint, isPinching);
-      this.statusDisplay.updateInteractionStatus(
-        status,
-        this.currentHandState,
-        this.opponentConnected
-      );
+      this.statusDisplay.updateInteractionStatus(status, this.opponentConnected);
     }
 
     // Update animations

@@ -9,7 +9,6 @@ export {
   BLOCK_REACH_DISTANCE,
   CAMERA_MARGIN,
   CANNON_COLOR,
-  EDGE_THRESHOLD,
   EXPLOSION_DURATION_MS,
   EXPLOSION_PARTICLE_COUNT,
   HAND_COLORS,
@@ -89,12 +88,6 @@ export const STARFIELD = {
 // ============ Visual Effect Constants ============
 
 export const EFFECTS = {
-  /** Depth line color */
-  DEPTH_LINE_COLOR: 0xffaa00,
-  /** Depth line opacity */
-  DEPTH_LINE_OPACITY: 0.6,
-  /** Hand shadow opacity base */
-  SHADOW_OPACITY: 0.4,
   /** Wall hit highlight color */
   WALL_HIT_COLOR: 0xff4400,
   /** Wall hit grid outline color */

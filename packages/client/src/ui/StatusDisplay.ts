@@ -2,7 +2,7 @@
  * @fileoverview DOM-based status display management.
  */
 
-import type { ConnectionState, HandState } from '../types.js';
+import type { ConnectionState } from '../types.js';
 
 /**
  * Get a required DOM element by ID, throwing if not found.
@@ -41,17 +41,11 @@ export class StatusDisplay {
   }
 
   /**
-   * Update with hand state and opponent info.
+   * Update with opponent info.
    */
-  updateInteractionStatus(
-    interactionStatus: string,
-    handState: HandState,
-    opponentConnected: boolean
-  ): void {
-    const stateText =
-      handState === 'outside' ? ' (OUT OF BOUNDS)' : handState === 'warning' ? ' (near edge)' : '';
+  updateInteractionStatus(interactionStatus: string, opponentConnected: boolean): void {
     const opponentText = opponentConnected ? '' : ' [waiting for opponent]';
-    this.statusElement.textContent = interactionStatus + stateText + opponentText;
+    this.statusElement.textContent = interactionStatus + opponentText;
   }
 
   /**

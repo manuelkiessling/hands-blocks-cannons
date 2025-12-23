@@ -28,36 +28,8 @@ export class EffectsManager {
   };
   private projectileSize = 0.3;
 
-  // Depth indicator and hand shadow
-  private readonly depthLine: THREE.Line;
-  private readonly handShadow: THREE.Mesh;
-
   constructor(scene: THREE.Scene) {
     this.scene = scene;
-
-    // Create depth indicator line
-    const depthLineMat = new THREE.LineBasicMaterial({
-      color: EFFECTS.DEPTH_LINE_COLOR,
-      transparent: true,
-      opacity: EFFECTS.DEPTH_LINE_OPACITY,
-    });
-    const depthLineGeo = new THREE.BufferGeometry();
-    depthLineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
-    this.depthLine = new THREE.Line(depthLineGeo, depthLineMat);
-    this.depthLine.visible = false;
-    this.scene.add(this.depthLine);
-
-    // Create hand shadow on floor
-    const shadowGeo = new THREE.CircleGeometry(0.3, 16);
-    const shadowMat = new THREE.MeshBasicMaterial({
-      color: EFFECTS.DEPTH_LINE_COLOR,
-      transparent: true,
-      opacity: EFFECTS.SHADOW_OPACITY,
-    });
-    this.handShadow = new THREE.Mesh(shadowGeo, shadowMat);
-    this.handShadow.rotation.x = -Math.PI / 2;
-    this.handShadow.visible = false;
-    this.scene.add(this.handShadow);
   }
 
   /**
@@ -65,7 +37,6 @@ export class EffectsManager {
    */
   setRoom(room: RoomBounds): void {
     this.room = room;
-    this.handShadow.position.y = room.minY + 0.01;
   }
 
   /**
@@ -189,45 +160,6 @@ export class EffectsManager {
   }
 
   /**
-   * Update depth indicator to show hand position relative to floor.
-   */
-  updateDepthIndicator(wristPos: THREE.Vector3 | null): void {
-    if (!wristPos || !this.room) {
-      this.depthLine.visible = false;
-      this.handShadow.visible = false;
-      return;
-    }
-
-    const floorY = this.room.minY;
-
-    // Update depth line
-    const positionAttr = this.depthLine.geometry.attributes.position;
-    if (positionAttr) {
-      const linePositions = positionAttr.array as Float32Array;
-      linePositions[0] = wristPos.x;
-      linePositions[1] = wristPos.y;
-      linePositions[2] = wristPos.z;
-      linePositions[3] = wristPos.x;
-      linePositions[4] = floorY;
-      linePositions[5] = wristPos.z;
-      positionAttr.needsUpdate = true;
-      this.depthLine.visible = true;
-    }
-
-    // Update hand shadow
-    this.handShadow.position.x = wristPos.x;
-    this.handShadow.position.z = wristPos.z;
-    const heightAboveFloor = wristPos.y - floorY;
-    const shadowScale = Math.max(0.3, 1.5 - heightAboveFloor * 0.1);
-    this.handShadow.scale.setScalar(shadowScale);
-    (this.handShadow.material as THREE.MeshBasicMaterial).opacity = Math.max(
-      0.15,
-      0.5 - heightAboveFloor * 0.03
-    );
-    this.handShadow.visible = true;
-  }
-
-  /**
    * Update all effects (call each frame).
    */
   update(deltaTime: number): void {
@@ -319,11 +251,5 @@ export class EffectsManager {
       this.scene.remove(data.group);
     }
     this.wallHighlights.clear();
-
-    // Remove depth line and shadow
-    this.scene.remove(this.depthLine);
-    this.scene.remove(this.handShadow);
-    this.depthLine.geometry.dispose();
-    this.handShadow.geometry.dispose();
   }
 }

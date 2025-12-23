@@ -3,8 +3,8 @@
  */
 
 import * as THREE from 'three';
-import { CAMERA_MARGIN, EDGE_THRESHOLD, HAND_LANDMARKS, PINCH_THRESHOLD } from '../constants.js';
-import type { HandLandmarks, HandState, RoomBounds } from '../types.js';
+import { CAMERA_MARGIN, HAND_LANDMARKS, PINCH_THRESHOLD } from '../constants.js';
+import type { HandLandmarks, RoomBounds } from '../types.js';
 
 /**
  * Detects gestures and converts hand positions to 3D coordinates.
@@ -50,41 +50,6 @@ export class GestureDetector {
       y: (thumb.y + index.y) / 2,
       z: 0,
     });
-  }
-
-  /**
-   * Get the wrist position in 3D space.
-   */
-  getWristPosition(landmarks: HandLandmarks): THREE.Vector3 | null {
-    const wrist = landmarks[HAND_LANDMARKS.WRIST];
-    if (!wrist) return null;
-    return this.landmarkTo3D(wrist);
-  }
-
-  /**
-   * Get the hand's state relative to camera bounds.
-   */
-  getHandState(landmarks: HandLandmarks): HandState {
-    const wrist = landmarks[HAND_LANDMARKS.WRIST];
-    if (!wrist) return 'normal';
-
-    const nearLeft = wrist.x < CAMERA_MARGIN + EDGE_THRESHOLD;
-    const nearRight = wrist.x > 1 - CAMERA_MARGIN - EDGE_THRESHOLD;
-    const nearTop = wrist.y < CAMERA_MARGIN + EDGE_THRESHOLD;
-    const nearBottom = wrist.y > 1 - CAMERA_MARGIN - EDGE_THRESHOLD;
-
-    const outsideLeft = wrist.x < CAMERA_MARGIN;
-    const outsideRight = wrist.x > 1 - CAMERA_MARGIN;
-    const outsideTop = wrist.y < CAMERA_MARGIN;
-    const outsideBottom = wrist.y > 1 - CAMERA_MARGIN;
-
-    if (outsideLeft || outsideRight || outsideTop || outsideBottom) {
-      return 'outside';
-    }
-    if (nearLeft || nearRight || nearTop || nearBottom) {
-      return 'warning';
-    }
-    return 'normal';
   }
 
   /**
