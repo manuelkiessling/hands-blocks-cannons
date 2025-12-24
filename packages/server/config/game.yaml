@@ -59,4 +59,3 @@ inactivity:
   timeoutMs: 300000
   # Interval in milliseconds between inactivity checks
   checkIntervalMs: 30000
-
