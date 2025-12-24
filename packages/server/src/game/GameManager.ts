@@ -223,13 +223,17 @@ export class GameManager {
     const connection = this.connections.get(ws);
 
     if (!connection) {
-      logger.warn('Message from unknown connection');
+      logger.warn('Message from unknown connection', { rawData: rawData.substring(0, 100) });
       return;
     }
 
     const message = parseIncomingMessage(rawData);
 
     if (!message) {
+      logger.warn('Failed to parse message', {
+        rawData: rawData.substring(0, 100),
+        playerId: connection.playerId,
+      });
       sendMessage(ws, {
         type: 'error',
         message: 'Invalid message format',
@@ -244,6 +248,7 @@ export class GameManager {
 
     // Handle play_again_vote separately
     if (message.type === 'play_again_vote') {
+      logger.info('Routing play_again_vote to handler', { playerId: connection.playerId });
       this.handlePlayAgainVote(connection.playerId);
       return;
     }
@@ -279,10 +284,11 @@ export class GameManager {
 
   /**
    * Check if all human players are ready and start the game if so.
+   * Only starts the game if we're in the 'waiting' phase.
    */
   private checkAndStartGame(): void {
-    if (this.state.gamePhase === 'playing') {
-      return; // Already playing
+    if (this.state.gamePhase !== 'waiting') {
+      return; // Only start from waiting phase
     }
 
     if (this.state.areAllHumansReady()) {
@@ -318,18 +324,56 @@ export class GameManager {
    * @param playerId - ID of the player voting
    */
   handlePlayAgainVote(playerId: PlayerId): void {
+    // Log all connected players for debugging
+    const connectedPlayerIds = Array.from(this.connections.values()).map((c) => c.playerId);
+    const statePlayers = Array.from(this.state.players.values()).map((p) => ({
+      id: p.id,
+      wantsPlayAgain: p.wantsPlayAgain,
+    }));
+
+    logger.info('Received play again vote', {
+      playerId,
+      currentPhase: this.state.gamePhase,
+      currentVoters: this.state.getPlayAgainVoters(),
+      playerCount: this.state.getPlayerCount(),
+      connectedPlayerIds,
+      statePlayers,
+    });
+
+    // Check if player exists in state
+    const player = this.state.getPlayer(playerId);
+    if (!player) {
+      logger.error('Play again vote from unknown player!', {
+        playerId,
+        connectedPlayerIds,
+        statePlayers,
+      });
+      return;
+    }
+
     if (this.state.gamePhase !== 'finished') {
-      logger.warn('Play again vote ignored - game not finished', { playerId });
+      logger.warn('Play again vote ignored - game not finished', {
+        playerId,
+        phase: this.state.gamePhase,
+      });
       return;
     }
 
     // Record the vote
+    const previousVoters = this.state.getPlayAgainVoters();
     this.state = this.state.markPlayerWantsPlayAgain(playerId);
+    const newVoters = this.state.getPlayAgainVoters();
+
+    // Check if vote was actually recorded
+    const voteRecorded = newVoters.length > previousVoters.length;
 
     logger.info('Player voted to play again', {
       playerId,
-      voters: this.state.getPlayAgainVoters(),
+      previousVoters,
+      newVoters,
+      voteRecorded,
       totalPlayers: this.state.getPlayerCount(),
+      allWantPlayAgain: this.state.allPlayersWantPlayAgain(),
     });
 
     // Broadcast vote status to all players
@@ -341,7 +385,13 @@ export class GameManager {
 
     // Check if all players want to play again
     if (this.state.allPlayersWantPlayAgain()) {
+      logger.info('All players want to play again - triggering reset');
       this.resetGame();
+    } else {
+      logger.info('Not all players voted yet', {
+        voters: this.state.getPlayAgainVoters(),
+        totalPlayers: this.state.getPlayerCount(),
+      });
     }
   }
 

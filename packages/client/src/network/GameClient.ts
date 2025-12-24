@@ -168,6 +168,7 @@ export class GameClient {
    * Send play again vote message.
    */
   sendPlayAgainVote(): void {
+    console.log('GameClient: sending play_again_vote message');
     this.send({ type: 'play_again_vote' });
   }
 
@@ -181,6 +182,13 @@ export class GameClient {
   private send(message: Record<string, unknown>): void {
     if (this.isConnected && this.ws) {
       this.ws.send(JSON.stringify(message));
+    } else {
+      console.warn('GameClient: Cannot send message - not connected', {
+        messageType: message.type,
+        isConnected: this.isConnected,
+        wsExists: this.ws !== null,
+        wsReadyState: this.ws?.readyState,
+      });
     }
   }
 
@@ -245,14 +253,17 @@ export class GameClient {
         break;
 
       case 'game_over':
+        console.log('GameClient received game_over:', message);
         this.events.onGameOver?.(message.winnerId, message.winnerNumber, message.reason);
         break;
 
       case 'play_again_status':
+        console.log('GameClient received play_again_status:', message);
         this.events.onPlayAgainStatus?.(message.votedPlayerIds, message.totalPlayers);
         break;
 
       case 'game_reset':
+        console.log('GameClient received game_reset:', message);
         this.events.onGameReset?.(message.blocks);
         break;
 

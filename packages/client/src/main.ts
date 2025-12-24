@@ -187,19 +187,25 @@ class Game {
   private handleGameOver(winnerId: string, winnerNumber: 1 | 2, _reason: string): void {
     this.gamePhase = 'finished';
     const isWinner = winnerId === this.playerId;
-    console.log('Game over!', { winnerId, winnerNumber, isWinner });
+    console.log('Game over!', { winnerId, winnerNumber, isWinner, myPlayerId: this.playerId });
 
     this.statusDisplay.showGameOverOverlay(isWinner, () => {
+      console.log('Sending play again vote to server');
       this.gameClient.sendPlayAgainVote();
     });
   }
 
   private handlePlayAgainStatus(votedPlayerIds: string[], totalPlayers: number): void {
+    console.log('Play again status update', {
+      votedPlayerIds,
+      totalPlayers,
+      myPlayerId: this.playerId,
+    });
     this.statusDisplay.updatePlayAgainStatus(votedPlayerIds.length, totalPlayers);
   }
 
   private handleGameReset(blocks: Block[]): void {
-    console.log('Game reset - starting new round');
+    console.log('Game reset received - starting new round', { blockCount: blocks.length });
 
     // Hide game over overlay
     this.statusDisplay.hideGameOverOverlay();

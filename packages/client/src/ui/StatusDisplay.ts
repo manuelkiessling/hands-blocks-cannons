@@ -160,6 +160,9 @@ export class StatusDisplay {
     });
   }
 
+  // Store current click handler so we can remove it properly
+  private playAgainClickHandler: (() => void) | null = null;
+
   /**
    * Show the game over overlay.
    * @param isWinner - Whether the local player won
@@ -181,14 +184,20 @@ export class StatusDisplay {
     this.votingStatus.textContent = '';
     this.playAgainBtn.disabled = false;
 
+    // Remove any existing click handler from previous games
+    if (this.playAgainClickHandler) {
+      this.playAgainBtn.removeEventListener('click', this.playAgainClickHandler);
+      this.playAgainClickHandler = null;
+    }
+
     // Set up play again button handler
-    const handleClick = (): void => {
+    this.playAgainClickHandler = (): void => {
+      console.log('Play Again button clicked - sending vote');
       this.playAgainBtn.disabled = true;
       this.votingStatus.textContent = 'Waiting for opponent...';
       onPlayAgain();
-      this.playAgainBtn.removeEventListener('click', handleClick);
     };
-    this.playAgainBtn.addEventListener('click', handleClick);
+    this.playAgainBtn.addEventListener('click', this.playAgainClickHandler);
 
     this.gameOverOverlay.classList.remove('hidden');
     this.gameOverOverlay.classList.remove('fade-out');
@@ -207,6 +216,12 @@ export class StatusDisplay {
    * Hide the game over overlay with a fade animation.
    */
   hideGameOverOverlay(): void {
+    // Clean up click handler
+    if (this.playAgainClickHandler) {
+      this.playAgainBtn.removeEventListener('click', this.playAgainClickHandler);
+      this.playAgainClickHandler = null;
+    }
+
     this.gameOverOverlay.classList.add('fade-out');
     setTimeout(() => {
       this.gameOverOverlay.classList.add('hidden');
