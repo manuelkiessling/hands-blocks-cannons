@@ -81,3 +81,6 @@ export type {
   WallGridConfig,
   WallHitInfo,
 } from './types/index.js';
+
+// Type constants
+export { MAX_GRABBED_BLOCKS } from './types/index.js';

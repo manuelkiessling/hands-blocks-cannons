@@ -40,17 +40,11 @@ export class RoomRenderer {
       new THREE.Vector3(0, 0, 0),
       new THREE.Vector3(size, 0, 0),
     ];
-    const line1 = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints(points1),
-      material
-    );
+    const line1 = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points1), material);
     group.add(line1);
 
     // Create L-shape in XZ plane
-    const points2 = [
-      new THREE.Vector3(0, 0, size),
-      new THREE.Vector3(0, 0, 0),
-    ];
+    const points2 = [new THREE.Vector3(0, 0, size), new THREE.Vector3(0, 0, 0)];
     const line2 = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints(points2),
       material.clone()
@@ -110,7 +104,7 @@ export class RoomRenderer {
     const cornerSize = ROOM_VISUAL.CORNER_SIZE;
 
     // 8 corners of the room
-    const corners = [
+    const corners: { pos: [number, number, number]; rot: [number, number, number] }[] = [
       { pos: [minX, minY, minZ], rot: [0, 0, 0] },
       { pos: [maxX, minY, minZ], rot: [0, Math.PI / 2, 0] },
       { pos: [maxX, minY, maxZ], rot: [0, Math.PI, 0] },
@@ -123,8 +117,10 @@ export class RoomRenderer {
 
     for (const corner of corners) {
       const marker = this.createCornerMarker(cornerSize);
-      marker.position.set(corner.pos[0]!, corner.pos[1]!, corner.pos[2]!);
-      marker.rotation.set(corner.rot[0]!, corner.rot[1]!, corner.rot[2]!);
+      const [px, py, pz] = corner.pos;
+      const [rx, ry, rz] = corner.rot;
+      marker.position.set(px, py, pz);
+      marker.rotation.set(rx, ry, rz);
       this.cornerMarkers.add(marker);
     }
     this.scene.add(this.cornerMarkers);
@@ -200,8 +196,8 @@ export class RoomRenderer {
    */
   update(elapsedTime: number): void {
     // Pulse the wireframe edges
-    const pulseValue = this.baseOpacity +
-      Math.sin(elapsedTime * ROOM_VISUAL.PULSE_SPEED) * ROOM_VISUAL.PULSE_RANGE;
+    const pulseValue =
+      this.baseOpacity + Math.sin(elapsedTime * ROOM_VISUAL.PULSE_SPEED) * ROOM_VISUAL.PULSE_RANGE;
 
     for (const material of this.pulseMaterials) {
       material.opacity = pulseValue;

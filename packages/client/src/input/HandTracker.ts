@@ -5,21 +5,22 @@
 import { Camera } from '@mediapipe/camera_utils';
 import { Hands } from '@mediapipe/hands';
 import { MEDIAPIPE } from '../constants.js';
-import type { HandLandmarks } from '../types.js';
+import type { Handedness, MultiHandResult, TrackedHand } from '../types.js';
 
 /**
- * Callback for when hand landmarks are detected.
+ * Callback for when hands are detected.
+ * Receives array of tracked hands (empty array if no hands detected).
  */
-export type HandLandmarksCallback = (landmarks: HandLandmarks | null) => void;
+export type MultiHandCallback = (hands: MultiHandResult) => void;
 
 /**
- * Manages MediaPipe hand tracking.
+ * Manages MediaPipe hand tracking with support for multiple hands.
  */
 export class HandTracker {
   private hands: Hands | null = null;
   private camera: Camera | null = null;
   private readonly video: HTMLVideoElement;
-  private callback: HandLandmarksCallback | null = null;
+  private callback: MultiHandCallback | null = null;
   private isRunning = false;
 
   constructor(videoElement: HTMLVideoElement) {
@@ -28,10 +29,10 @@ export class HandTracker {
 
   /**
    * Initialize hand tracking.
-   * @param onLandmarks - Callback for landmark updates
+   * @param onHands - Callback for hand updates (receives array of tracked hands)
    */
-  async initialize(onLandmarks: HandLandmarksCallback): Promise<void> {
-    this.callback = onLandmarks;
+  async initialize(onHands: MultiHandCallback): Promise<void> {
+    this.callback = onHands;
 
     // Get camera stream
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -57,16 +58,24 @@ export class HandTracker {
     });
 
     this.hands.onResults((results) => {
-      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-        const landmarks = results.multiHandLandmarks[0];
-        if (landmarks) {
-          this.callback?.(landmarks);
-        } else {
-          this.callback?.(null);
+      const trackedHands: TrackedHand[] = [];
+
+      if (results.multiHandLandmarks && results.multiHandedness) {
+        for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+          const landmarks = results.multiHandLandmarks[i];
+          const handedness = results.multiHandedness[i];
+
+          if (landmarks && handedness) {
+            trackedHands.push({
+              landmarks,
+              handedness: handedness.label as Handedness,
+              score: handedness.score ?? 1,
+            });
+          }
         }
-      } else {
-        this.callback?.(null);
       }
+
+      this.callback?.(trackedHands);
     });
 
     // Initialize camera

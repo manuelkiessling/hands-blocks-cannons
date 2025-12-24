@@ -3,6 +3,6 @@
  */
 
 export { GestureDetector } from './GestureDetector.js';
-export type { HandLandmarksCallback } from './HandTracker.js';
+export type { MultiHandCallback } from './HandTracker.js';
 export { HandTracker } from './HandTracker.js';
 export { HandVisualizer } from './HandVisualizer.js';

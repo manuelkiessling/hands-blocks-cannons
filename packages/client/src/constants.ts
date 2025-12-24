@@ -165,7 +165,7 @@ export const MEDIAPIPE = {
   /** Local path to MediaPipe hands assets (copied by vite-plugin-static-copy) */
   HANDS_PATH: './mediapipe/hands/',
   /** Maximum number of hands to track */
-  MAX_HANDS: 1,
+  MAX_HANDS: 2,
   /** Model complexity (0-2) */
   MODEL_COMPLEXITY: 1,
   /** Minimum detection confidence */

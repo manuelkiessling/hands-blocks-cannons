@@ -10,8 +10,9 @@ interface MockBlockRenderer {
   findNearestBlock: ReturnType<typeof vi.fn>;
   showReachableHighlight: ReturnType<typeof vi.fn>;
   hideReachableHighlight: ReturnType<typeof vi.fn>;
-  showGrabbedHighlight: ReturnType<typeof vi.fn>;
-  hideGrabbedHighlight: ReturnType<typeof vi.fn>;
+  showGrabbedHighlightForHand: ReturnType<typeof vi.fn>;
+  hideGrabbedHighlightForHand: ReturnType<typeof vi.fn>;
+  hideAllGrabbedHighlights: ReturnType<typeof vi.fn>;
 }
 
 interface MockGameClient {
@@ -19,6 +20,9 @@ interface MockGameClient {
   sendBlockMove: ReturnType<typeof vi.fn>;
   sendBlockRelease: ReturnType<typeof vi.fn>;
 }
+
+// Default handedness for tests
+const DEFAULT_HAND = 'Right' as const;
 
 // ============ Test Utilities ============
 
@@ -30,8 +34,9 @@ function createMockBlockRenderer(): MockBlockRenderer {
     findNearestBlock: vi.fn(),
     showReachableHighlight: vi.fn(),
     hideReachableHighlight: vi.fn(),
-    showGrabbedHighlight: vi.fn(),
-    hideGrabbedHighlight: vi.fn(),
+    showGrabbedHighlightForHand: vi.fn(),
+    hideGrabbedHighlightForHand: vi.fn(),
+    hideAllGrabbedHighlights: vi.fn(),
   };
 }
 
@@ -115,11 +120,11 @@ describe('InteractionManager', () => {
       const pinchPoint = createPinchPoint(0, 0);
 
       // First frame: not pinching - finds reachable block
-      manager.processInteraction(pinchPoint, false);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, false);
       expect(mockBlockRenderer.findNearestBlock).toHaveBeenCalled();
 
       // Second frame: pinching - grabs the block
-      const status = manager.processInteraction(pinchPoint, true);
+      const status = manager.processInteraction(DEFAULT_HAND, pinchPoint, true);
 
       expect(status).toBe('Grabbing');
       expect(mockGameClient.sendBlockGrab).toHaveBeenCalledWith('block-1');
@@ -133,19 +138,19 @@ describe('InteractionManager', () => {
       const pinchPoint = createPinchPoint(0, 0);
 
       // Grab the block
-      manager.processInteraction(pinchPoint, false);
-      manager.processInteraction(pinchPoint, true);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, false);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, true);
       expect(manager.getGrabbedBlockId()).toBe('block-1');
 
       // Stop pinching - starts grace period
-      manager.processInteraction(pinchPoint, false);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, false);
       expect(manager.getGrabbedBlockId()).toBe('block-1'); // Still grabbed
 
       // Advance past grace period
       vi.advanceTimersByTime(GRAB_RELEASE_GRACE_MS + 10);
 
       // Next frame after grace period - should release
-      manager.processInteraction(pinchPoint, false);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, false);
 
       expect(mockGameClient.sendBlockRelease).toHaveBeenCalledWith('block-1');
       expect(manager.getGrabbedBlockId()).toBeNull();
@@ -155,7 +160,7 @@ describe('InteractionManager', () => {
       mockBlockRenderer.findNearestBlock.mockReturnValue(null);
 
       const pinchPoint = createPinchPoint(0, 0);
-      const status = manager.processInteraction(pinchPoint, true);
+      const status = manager.processInteraction(DEFAULT_HAND, pinchPoint, true);
 
       expect(status).toBe('Pinching (no block)');
       expect(mockGameClient.sendBlockGrab).not.toHaveBeenCalled();
@@ -167,17 +172,17 @@ describe('InteractionManager', () => {
       mockBlockRenderer.findNearestBlock.mockReturnValue(block);
 
       // Grab the block
-      manager.processInteraction(createPinchPoint(0, 0), false);
-      manager.processInteraction(createPinchPoint(0, 0), true);
+      manager.processInteraction(DEFAULT_HAND, createPinchPoint(0, 0), false);
+      manager.processInteraction(DEFAULT_HAND, createPinchPoint(0, 0), true);
 
       // Move hand to new position
       const newPinchPoint = createPinchPoint(5, 3);
-      manager.processInteraction(newPinchPoint, true);
+      manager.processInteraction(DEFAULT_HAND, newPinchPoint, true);
 
       // Block should be moving towards the new position (lerped)
       expect(block.mesh.position.x).toBeGreaterThan(0);
       expect(block.mesh.position.y).toBeGreaterThan(0);
-      expect(mockBlockRenderer.showGrabbedHighlight).toHaveBeenCalled();
+      expect(mockBlockRenderer.showGrabbedHighlightForHand).toHaveBeenCalled();
     });
   });
 
@@ -191,12 +196,12 @@ describe('InteractionManager', () => {
       const pinchPoint = createPinchPoint(0, 0);
 
       // Grab the block
-      manager.processInteraction(pinchPoint, false);
-      manager.processInteraction(pinchPoint, true);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, false);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, true);
       expect(manager.getGrabbedBlockId()).toBe('block-1');
 
       // Pinch fails for one frame
-      manager.processInteraction(pinchPoint, false);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, false);
 
       // Block should still be grabbed
       expect(manager.getGrabbedBlockId()).toBe('block-1');
@@ -210,15 +215,15 @@ describe('InteractionManager', () => {
       const pinchPoint = createPinchPoint(0, 0);
 
       // Grab the block
-      manager.processInteraction(pinchPoint, false);
-      manager.processInteraction(pinchPoint, true);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, false);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, true);
 
       // Stop pinching - starts grace period
-      manager.processInteraction(pinchPoint, false);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, false);
 
       // Advance time but stay within grace period
       vi.advanceTimersByTime(GRAB_RELEASE_GRACE_MS - 10);
-      manager.processInteraction(pinchPoint, false);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, false);
 
       // Should still be grabbed
       expect(manager.getGrabbedBlockId()).toBe('block-1');
@@ -232,17 +237,17 @@ describe('InteractionManager', () => {
       const pinchPoint = createPinchPoint(0, 0);
 
       // Grab the block
-      manager.processInteraction(pinchPoint, false);
-      manager.processInteraction(pinchPoint, true);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, false);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, true);
 
       // Stop pinching
-      manager.processInteraction(pinchPoint, false);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, false);
 
       // Advance past grace period
       vi.advanceTimersByTime(GRAB_RELEASE_GRACE_MS + 10);
 
       // Should release on next frame
-      manager.processInteraction(pinchPoint, false);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, false);
 
       expect(manager.getGrabbedBlockId()).toBeNull();
       expect(mockGameClient.sendBlockRelease).toHaveBeenCalledWith('block-1');
@@ -255,17 +260,17 @@ describe('InteractionManager', () => {
       const pinchPoint = createPinchPoint(0, 0);
 
       // Grab the block
-      manager.processInteraction(pinchPoint, false);
-      manager.processInteraction(pinchPoint, true);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, false);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, true);
 
       // Stop pinching - starts grace period
-      manager.processInteraction(pinchPoint, false);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, false);
 
       // Wait a bit but not past grace period
       vi.advanceTimersByTime(GRAB_RELEASE_GRACE_MS / 2);
 
       // Resume pinching
-      manager.processInteraction(pinchPoint, true);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, true);
 
       // Block should still be grabbed
       expect(manager.getGrabbedBlockId()).toBe('block-1');
@@ -273,7 +278,7 @@ describe('InteractionManager', () => {
 
       // Even after more time passes, block stays grabbed because pinch resumed
       vi.advanceTimersByTime(GRAB_RELEASE_GRACE_MS * 2);
-      manager.processInteraction(pinchPoint, true);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, true);
 
       expect(manager.getGrabbedBlockId()).toBe('block-1');
       expect(mockGameClient.sendBlockRelease).not.toHaveBeenCalled();
@@ -291,15 +296,15 @@ describe('InteractionManager', () => {
       const pinchPoint = createPinchPoint(0, 0);
 
       // Grab block 1
-      manager.processInteraction(pinchPoint, false);
-      manager.processInteraction(pinchPoint, true);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, false);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, true);
 
       mockBlockRenderer.findNearestBlock.mockClear();
       mockBlockRenderer.findNearestBlock.mockReturnValue(block2);
 
       // Stop pinching - starts grace period
       const nearBlock2Point = createPinchPoint(2, 2);
-      manager.processInteraction(nearBlock2Point, false);
+      manager.processInteraction(DEFAULT_HAND, nearBlock2Point, false);
 
       // Should NOT have called findNearestBlock during grace period
       expect(mockBlockRenderer.findNearestBlock).not.toHaveBeenCalled();
@@ -314,20 +319,20 @@ describe('InteractionManager', () => {
       mockBlockRenderer.findNearestBlock.mockReturnValue(block1);
 
       // Grab block 1
-      manager.processInteraction(createPinchPoint(0, 0), false);
-      manager.processInteraction(createPinchPoint(0, 0), true);
+      manager.processInteraction(DEFAULT_HAND, createPinchPoint(0, 0), false);
+      manager.processInteraction(DEFAULT_HAND, createPinchPoint(0, 0), true);
 
       expect(manager.getGrabbedBlockId()).toBe('block-1');
 
       // Move hand near block 2 and stop pinching
       mockBlockRenderer.findNearestBlock.mockReturnValue(block2);
-      manager.processInteraction(createPinchPoint(5, 5), false);
+      manager.processInteraction(DEFAULT_HAND, createPinchPoint(5, 5), false);
 
       // Still within grace period - should keep block 1
       expect(manager.getGrabbedBlockId()).toBe('block-1');
 
       // Resume pinching at new location
-      manager.processInteraction(createPinchPoint(5, 5), true);
+      manager.processInteraction(DEFAULT_HAND, createPinchPoint(5, 5), true);
 
       // Should still have block 1, not block 2
       expect(manager.getGrabbedBlockId()).toBe('block-1');
@@ -338,16 +343,16 @@ describe('InteractionManager', () => {
       mockBlockRenderer.findNearestBlock.mockReturnValue(block);
 
       // Grab the block
-      manager.processInteraction(createPinchPoint(0, 0), false);
-      manager.processInteraction(createPinchPoint(0, 0), true);
+      manager.processInteraction(DEFAULT_HAND, createPinchPoint(0, 0), false);
+      manager.processInteraction(DEFAULT_HAND, createPinchPoint(0, 0), true);
 
       // Stop pinching but move hand - starts grace period
-      manager.processInteraction(createPinchPoint(3, 3), false);
+      manager.processInteraction(DEFAULT_HAND, createPinchPoint(3, 3), false);
 
       // Block should still be moving towards hand position
       expect(block.mesh.position.x).toBeGreaterThan(0);
       expect(block.mesh.position.y).toBeGreaterThan(0);
-      expect(mockBlockRenderer.showGrabbedHighlight).toHaveBeenCalled();
+      expect(mockBlockRenderer.showGrabbedHighlightForHand).toHaveBeenCalled();
     });
   });
 
@@ -359,13 +364,13 @@ describe('InteractionManager', () => {
       mockBlockRenderer.findNearestBlock.mockReturnValue(block);
 
       // Grab the block
-      manager.processInteraction(createPinchPoint(0, 0), false);
-      manager.processInteraction(createPinchPoint(0, 0), true);
+      manager.processInteraction(DEFAULT_HAND, createPinchPoint(0, 0), false);
+      manager.processInteraction(DEFAULT_HAND, createPinchPoint(0, 0), true);
 
       expect(manager.getGrabbedBlockId()).toBe('block-1');
 
       // Hand is lost (null pinch point) - should release immediately
-      const status = manager.processInteraction(null, false);
+      const status = manager.processInteraction(DEFAULT_HAND, null, false);
 
       expect(status).toBe('No hand detected');
       expect(manager.getGrabbedBlockId()).toBeNull();
@@ -379,14 +384,14 @@ describe('InteractionManager', () => {
       const pinchPoint = createPinchPoint(0, 0);
 
       // Grab the block
-      manager.processInteraction(pinchPoint, false);
-      manager.processInteraction(pinchPoint, true);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, false);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, true);
 
       // Multiple quick pinch cycles
       for (let i = 0; i < 5; i++) {
-        manager.processInteraction(pinchPoint, false); // Release attempt
+        manager.processInteraction(DEFAULT_HAND, pinchPoint, false); // Release attempt
         vi.advanceTimersByTime(GRAB_RELEASE_GRACE_MS / 3); // Less than grace period
-        manager.processInteraction(pinchPoint, true); // Resume pinch
+        manager.processInteraction(DEFAULT_HAND, pinchPoint, true); // Resume pinch
       }
 
       // Block should still be grabbed through all cycles
@@ -401,25 +406,25 @@ describe('InteractionManager', () => {
       const pinchPoint = createPinchPoint(0, 0);
 
       // Grab the block
-      manager.processInteraction(pinchPoint, false);
-      manager.processInteraction(pinchPoint, true);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, false);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, true);
 
       // First pinch failure - starts grace period
-      manager.processInteraction(pinchPoint, false);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, false);
 
       // Wait almost the full grace period
       vi.advanceTimersByTime(GRAB_RELEASE_GRACE_MS - 10);
 
       // Resume pinching (cancels grace timer)
-      manager.processInteraction(pinchPoint, true);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, true);
 
       // Stop pinching again (starts new grace period)
-      manager.processInteraction(pinchPoint, false);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, false);
 
       // Even though total time since first failure exceeds grace period,
       // the timer was reset when pinch resumed
       vi.advanceTimersByTime(GRAB_RELEASE_GRACE_MS - 10);
-      manager.processInteraction(pinchPoint, false);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, false);
 
       // Should still be grabbed (new grace period hasn't expired)
       expect(manager.getGrabbedBlockId()).toBe('block-1');
@@ -427,7 +432,7 @@ describe('InteractionManager', () => {
 
       // Now wait for new grace period to expire
       vi.advanceTimersByTime(20);
-      manager.processInteraction(pinchPoint, false);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, false);
 
       // Now should be released
       expect(manager.getGrabbedBlockId()).toBeNull();
@@ -441,18 +446,18 @@ describe('InteractionManager', () => {
       const pinchPoint = createPinchPoint(0, 0);
 
       // Grab the block
-      manager.processInteraction(pinchPoint, false);
-      manager.processInteraction(pinchPoint, true);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, false);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, true);
 
       // Start grace period
-      manager.processInteraction(pinchPoint, false);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, false);
 
       // Clear all state
       manager.clear();
 
       expect(manager.getGrabbedBlockId()).toBeNull();
       expect(mockBlockRenderer.hideReachableHighlight).toHaveBeenCalled();
-      expect(mockBlockRenderer.hideGrabbedHighlight).toHaveBeenCalled();
+      expect(mockBlockRenderer.hideAllGrabbedHighlights).toHaveBeenCalled();
 
       // Verify no release was sent (clear doesn't send network messages)
       // sendBlockRelease should NOT have been called by clear()
@@ -466,14 +471,82 @@ describe('InteractionManager', () => {
       const pinchPoint = createPinchPoint(0, 0);
 
       // Grab the block
-      manager.processInteraction(pinchPoint, false);
-      manager.processInteraction(pinchPoint, true);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, false);
+      manager.processInteraction(DEFAULT_HAND, pinchPoint, true);
 
       // Stop pinching - enter grace period
-      const status = manager.processInteraction(pinchPoint, false);
+      const status = manager.processInteraction(DEFAULT_HAND, pinchPoint, false);
 
       // Should still show 'Grabbing' during grace period
       expect(status).toBe('Grabbing');
+    });
+  });
+
+  // ============ Two-Hand Interaction Tests ============
+
+  describe('Two-Hand Interaction', () => {
+    it('should allow grabbing two different blocks with two hands', () => {
+      const block1 = createTestBlock('block-1');
+      const block2 = createTestBlock('block-2', 3, 3);
+
+      // Right hand grabs block 1
+      mockBlockRenderer.findNearestBlock.mockReturnValue(block1);
+      manager.processInteraction('Right', createPinchPoint(0, 0), false);
+      manager.processInteraction('Right', createPinchPoint(0, 0), true);
+
+      // Left hand grabs block 2
+      mockBlockRenderer.findNearestBlock.mockReturnValue(block2);
+      manager.processInteraction('Left', createPinchPoint(3, 3), false);
+      manager.processInteraction('Left', createPinchPoint(3, 3), true);
+
+      // Both blocks should be grabbed
+      const grabbedIds = manager.getGrabbedBlockIds();
+      expect(grabbedIds).toContain('block-1');
+      expect(grabbedIds).toContain('block-2');
+      expect(grabbedIds).toHaveLength(2);
+    });
+
+    it('should not allow same block to be grabbed by both hands', () => {
+      const block = createTestBlock('block-1');
+      mockBlockRenderer.findNearestBlock.mockReturnValue(block);
+
+      // Right hand grabs block
+      manager.processInteraction('Right', createPinchPoint(0, 0), false);
+      manager.processInteraction('Right', createPinchPoint(0, 0), true);
+
+      // Left hand tries to grab same block
+      manager.processInteraction('Left', createPinchPoint(0, 0), false);
+      manager.processInteraction('Left', createPinchPoint(0, 0), true);
+
+      // Only one grab should have succeeded
+      expect(manager.getGrabbedBlockIds()).toHaveLength(1);
+    });
+
+    it('should release hand independently', () => {
+      const block1 = createTestBlock('block-1');
+      const block2 = createTestBlock('block-2', 3, 3);
+
+      // Both hands grab blocks
+      mockBlockRenderer.findNearestBlock.mockReturnValue(block1);
+      manager.processInteraction('Right', createPinchPoint(0, 0), false);
+      manager.processInteraction('Right', createPinchPoint(0, 0), true);
+
+      mockBlockRenderer.findNearestBlock.mockReturnValue(block2);
+      manager.processInteraction('Left', createPinchPoint(3, 3), false);
+      manager.processInteraction('Left', createPinchPoint(3, 3), true);
+
+      expect(manager.getGrabbedBlockIds()).toHaveLength(2);
+
+      // Right hand releases (after grace period)
+      manager.processInteraction('Right', createPinchPoint(0, 0), false);
+      vi.advanceTimersByTime(GRAB_RELEASE_GRACE_MS + 10);
+      manager.processInteraction('Right', createPinchPoint(0, 0), false);
+
+      // Only block 2 should still be grabbed
+      const grabbedIds = manager.getGrabbedBlockIds();
+      expect(grabbedIds).not.toContain('block-1');
+      expect(grabbedIds).toContain('block-2');
+      expect(grabbedIds).toHaveLength(1);
     });
   });
 });

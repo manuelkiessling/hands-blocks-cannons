@@ -11,7 +11,14 @@ import {
   LASER_BEAM,
   PROJECTILE_COLORS,
 } from '../constants.js';
-import type { Block, BlockEntity, Projectile, ProjectileEntity, RoomBounds } from '../types.js';
+import type {
+  Block,
+  BlockEntity,
+  Handedness,
+  Projectile,
+  ProjectileEntity,
+  RoomBounds,
+} from '../types.js';
 
 /**
  * Create a spaceship-style cannon mesh.
@@ -248,7 +255,7 @@ export class BlockRenderer {
 
   // Highlights
   private readonly reachableHighlight: THREE.LineSegments;
-  private readonly grabbedHighlight: THREE.LineSegments;
+  private readonly grabbedHighlights: Map<Handedness, THREE.LineSegments> = new Map();
   private readonly opponentGrabHighlight: THREE.LineSegments;
 
   // Laser beams for cannons (group containing beam line and crosshair)
@@ -276,16 +283,21 @@ export class BlockRenderer {
     this.reachableHighlight.visible = false;
     this.scene.add(this.reachableHighlight);
 
-    this.grabbedHighlight = new THREE.LineSegments(
-      highlightEdges.clone(),
-      new THREE.LineBasicMaterial({
-        color: HIGHLIGHT_COLORS.GRABBED,
-        transparent: true,
-        opacity: 1,
-      })
-    );
-    this.grabbedHighlight.visible = false;
-    this.scene.add(this.grabbedHighlight);
+    // Create grabbed highlights for each hand (Left and Right)
+    const handednessValues: Handedness[] = ['Left', 'Right'];
+    for (const handedness of handednessValues) {
+      const grabbedHighlight = new THREE.LineSegments(
+        highlightEdges.clone(),
+        new THREE.LineBasicMaterial({
+          color: HIGHLIGHT_COLORS.GRABBED,
+          transparent: true,
+          opacity: 1,
+        })
+      );
+      grabbedHighlight.visible = false;
+      this.scene.add(grabbedHighlight);
+      this.grabbedHighlights.set(handedness, grabbedHighlight);
+    }
 
     this.opponentGrabHighlight = new THREE.LineSegments(
       highlightEdges.clone(),
@@ -348,7 +360,7 @@ export class BlockRenderer {
     // Orient cannon to point towards its owner's enemy
     if (isCannon && this.playerNumber) {
       // Determine cannon owner's player number (same logic as laser beam)
-      const ownerPlayerNumber = isMyBlock ? this.playerNumber : (this.playerNumber === 1 ? 2 : 1);
+      const ownerPlayerNumber = isMyBlock ? this.playerNumber : this.playerNumber === 1 ? 2 : 1;
       // Player 1's ship points toward -Z, Player 2's ship points toward +Z
       mesh.rotation.y = ownerPlayerNumber === 1 ? 0 : Math.PI;
     }
@@ -414,18 +426,9 @@ export class BlockRenderer {
     });
 
     // Horizontal line
-    const hPoints = [
-      new THREE.Vector3(-size * 1.2, 0, 0),
-      new THREE.Vector3(-size * 0.4, 0, 0),
-    ];
-    const hPoints2 = [
-      new THREE.Vector3(size * 0.4, 0, 0),
-      new THREE.Vector3(size * 1.2, 0, 0),
-    ];
-    const hLine1 = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints(hPoints),
-      lineMaterial
-    );
+    const hPoints = [new THREE.Vector3(-size * 1.2, 0, 0), new THREE.Vector3(-size * 0.4, 0, 0)];
+    const hPoints2 = [new THREE.Vector3(size * 0.4, 0, 0), new THREE.Vector3(size * 1.2, 0, 0)];
+    const hLine1 = new THREE.Line(new THREE.BufferGeometry().setFromPoints(hPoints), lineMaterial);
     const hLine2 = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints(hPoints2),
       lineMaterial.clone()
@@ -434,14 +437,8 @@ export class BlockRenderer {
     crosshairGroup.add(hLine2);
 
     // Vertical line
-    const vPoints = [
-      new THREE.Vector3(0, -size * 1.2, 0),
-      new THREE.Vector3(0, -size * 0.4, 0),
-    ];
-    const vPoints2 = [
-      new THREE.Vector3(0, size * 0.4, 0),
-      new THREE.Vector3(0, size * 1.2, 0),
-    ];
+    const vPoints = [new THREE.Vector3(0, -size * 1.2, 0), new THREE.Vector3(0, -size * 0.4, 0)];
+    const vPoints2 = [new THREE.Vector3(0, size * 0.4, 0), new THREE.Vector3(0, size * 1.2, 0)];
     const vLine1 = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints(vPoints),
       lineMaterial.clone()
@@ -506,7 +503,11 @@ export class BlockRenderer {
     // Crosshair at the endpoint
     const crosshair = this.createCrosshair(beamColor);
     crosshair.name = 'crosshair';
-    crosshair.position.set(position.x, position.y, targetZ + (ownerPlayerNumber === 1 ? 0.02 : -0.02));
+    crosshair.position.set(
+      position.x,
+      position.y,
+      targetZ + (ownerPlayerNumber === 1 ? 0.02 : -0.02)
+    );
     beamGroup.add(crosshair);
 
     this.scene.add(beamGroup);
@@ -539,7 +540,11 @@ export class BlockRenderer {
     // Update crosshair position
     const crosshair = beamGroup.getObjectByName('crosshair');
     if (crosshair) {
-      crosshair.position.set(position.x, position.y, targetZ + (ownerPlayerNumber === 1 ? 0.02 : -0.02));
+      crosshair.position.set(
+        position.x,
+        position.y,
+        targetZ + (ownerPlayerNumber === 1 ? 0.02 : -0.02)
+      );
     }
   }
 
@@ -715,29 +720,75 @@ export class BlockRenderer {
   }
 
   /**
+   * Show grabbed block highlight at a position for a specific hand.
+   */
+  showGrabbedHighlightForHand(
+    handedness: Handedness,
+    position: THREE.Vector3,
+    rotation?: THREE.Euler
+  ): void {
+    const highlight = this.grabbedHighlights.get(handedness);
+    if (highlight) {
+      highlight.position.copy(position);
+      if (rotation) {
+        highlight.rotation.copy(rotation);
+      }
+      highlight.visible = true;
+    }
+  }
+
+  /**
+   * Hide the grabbed block highlight for a specific hand.
+   */
+  hideGrabbedHighlightForHand(handedness: Handedness): void {
+    const highlight = this.grabbedHighlights.get(handedness);
+    if (highlight) {
+      highlight.visible = false;
+    }
+  }
+
+  /**
+   * Hide all grabbed block highlights.
+   */
+  hideAllGrabbedHighlights(): void {
+    for (const highlight of this.grabbedHighlights.values()) {
+      highlight.visible = false;
+    }
+  }
+
+  /**
    * Show grabbed block highlight at a position.
+   * @deprecated Use showGrabbedHighlightForHand() for multi-hand support
    */
   showGrabbedHighlight(position: THREE.Vector3, rotation?: THREE.Euler): void {
-    this.grabbedHighlight.position.copy(position);
-    if (rotation) {
-      this.grabbedHighlight.rotation.copy(rotation);
-    }
-    this.grabbedHighlight.visible = true;
+    // Legacy: use Left hand highlight
+    this.showGrabbedHighlightForHand('Left', position, rotation);
   }
 
   /**
    * Hide the grabbed block highlight.
+   * @deprecated Use hideGrabbedHighlightForHand() or hideAllGrabbedHighlights()
    */
   hideGrabbedHighlight(): void {
-    this.grabbedHighlight.visible = false;
+    this.hideAllGrabbedHighlights();
   }
 
   /**
    * Update floating animations for all blocks.
+   * @param elapsedTime - Elapsed time for animation calculations
+   * @param grabbedBlockId - Single grabbed block ID (legacy) or null
+   * @param grabbedBlockIds - Optional array of all grabbed block IDs
    */
-  updateAnimations(elapsedTime: number, grabbedBlockId: string | null): void {
+  updateAnimations(
+    elapsedTime: number,
+    grabbedBlockId: string | null,
+    grabbedBlockIds?: string[]
+  ): void {
+    // Build set of all grabbed IDs for efficient lookup
+    const grabbedSet = new Set(grabbedBlockIds ?? (grabbedBlockId ? [grabbedBlockId] : []));
+
     for (const [id, entity] of this._blocks) {
-      const isGrabbed = id === grabbedBlockId || entity.isGrabbed;
+      const isGrabbed = grabbedSet.has(id) || entity.isGrabbed;
 
       if (!isGrabbed) {
         // Gentle floating animation for non-grabbed blocks
@@ -818,17 +869,23 @@ export class BlockRenderer {
 
   /**
    * Find the nearest block to a point within a max distance.
+   * @param point - The point to search from
+   * @param maxDistance - Maximum distance to consider
+   * @param onlyMyBlocks - Only consider blocks owned by local player
+   * @param excludeIds - Set of block IDs to exclude from search (e.g., already grabbed)
    */
   findNearestBlock(
     point: THREE.Vector3,
     maxDistance: number,
-    onlyMyBlocks: boolean = true
+    onlyMyBlocks: boolean = true,
+    excludeIds?: Set<string>
   ): BlockEntity | null {
     let nearest: BlockEntity | null = null;
     let nearestDist = maxDistance;
 
     for (const [blockId, entity] of this._blocks) {
       if (onlyMyBlocks && !this.myBlockIds.has(blockId)) continue;
+      if (excludeIds?.has(blockId)) continue;
 
       const dx = entity.mesh.position.x - point.x;
       const dy = entity.mesh.position.y - point.y;
@@ -891,7 +948,9 @@ export class BlockRenderer {
   dispose(): void {
     this.clear();
     this.scene.remove(this.reachableHighlight);
-    this.scene.remove(this.grabbedHighlight);
+    for (const highlight of this.grabbedHighlights.values()) {
+      this.scene.remove(highlight);
+    }
     this.scene.remove(this.opponentGrabHighlight);
   }
 }

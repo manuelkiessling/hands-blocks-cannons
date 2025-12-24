@@ -31,6 +31,8 @@ export type {
   WallGridConfig,
 } from '@block-game/shared';
 
+export { MAX_GRABBED_BLOCKS } from '@block-game/shared';
+
 // ============ Runtime Configuration ============
 
 /**

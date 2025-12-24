@@ -199,13 +199,13 @@ export class SceneManager {
     // More vibrant and varied nebula colors
     const nebulaColors = [
       { color: 0x6b2a9e, opacity: 0.12 }, // Deep purple
-      { color: 0x1a5a8b, opacity: 0.10 }, // Ocean blue
+      { color: 0x1a5a8b, opacity: 0.1 }, // Ocean blue
       { color: 0x8b1a4a, opacity: 0.08 }, // Magenta
       { color: 0x2a8b6b, opacity: 0.07 }, // Teal
       { color: 0x4a1a8b, opacity: 0.09 }, // Violet
       { color: 0x1a3a6b, opacity: 0.08 }, // Navy blue
       { color: 0x6b4a1a, opacity: 0.06 }, // Bronze glow
-      { color: 0x3a1a6b, opacity: 0.10 }, // Indigo
+      { color: 0x3a1a6b, opacity: 0.1 }, // Indigo
     ];
 
     for (let i = 0; i < STARFIELD.NEBULA_COUNT; i++) {
@@ -233,11 +233,15 @@ export class SceneManager {
 
       // Add some noise/texture to break up uniformity
       const imageData = ctx.getImageData(0, 0, 256, 256);
-      for (let j = 0; j < imageData.data.length; j += 4) {
+      const data = imageData.data;
+      for (let j = 0; j < data.length; j += 4) {
         const noise = (Math.random() - 0.5) * 20;
-        imageData.data[j] = Math.max(0, Math.min(255, imageData.data[j]! + noise));
-        imageData.data[j + 1] = Math.max(0, Math.min(255, imageData.data[j + 1]! + noise));
-        imageData.data[j + 2] = Math.max(0, Math.min(255, imageData.data[j + 2]! + noise));
+        const r = data[j] ?? 0;
+        const g = data[j + 1] ?? 0;
+        const b = data[j + 2] ?? 0;
+        data[j] = Math.max(0, Math.min(255, r + noise));
+        data[j + 1] = Math.max(0, Math.min(255, g + noise));
+        data[j + 2] = Math.max(0, Math.min(255, b + noise));
       }
       ctx.putImageData(imageData, 0, 0);
 

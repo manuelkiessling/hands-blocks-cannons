@@ -108,9 +108,9 @@ describe('GameState', () => {
       const state = GameState.create().addPlayer('player-1', 1);
       const blockId = getFirstBlockId(state);
 
-      const newState = state.grabBlock('player-1', blockId);
+      const { state: newState } = state.grabBlock('player-1', blockId);
 
-      expect(newState.getPlayer('player-1')?.grabbedBlockId).toBe(blockId);
+      expect(newState.getPlayer('player-1')?.grabbedBlockIds).toContain(blockId);
     });
 
     it("should not allow grabbing another player's block", () => {
@@ -120,31 +120,76 @@ describe('GameState', () => {
 
       if (!player2Block) throw new Error('Player 2 block not found');
 
-      const newState = state.grabBlock('player-1', player2Block.id);
+      const { state: newState } = state.grabBlock('player-1', player2Block.id);
 
-      expect(newState.getPlayer('player-1')?.grabbedBlockId).toBe(null);
+      expect(newState.getPlayer('player-1')?.grabbedBlockIds).toHaveLength(0);
     });
 
-    it('should not allow grabbing if already grabbing', () => {
+    it('should allow grabbing two blocks simultaneously', () => {
       const state = GameState.create().addPlayer('player-1', 1);
       const [block1, block2] = getBlockIds(state, 2);
 
-      const stateWithGrab = state.grabBlock('player-1', block1);
-      const newState = stateWithGrab.grabBlock('player-1', block2);
+      const { state: stateWithGrab1 } = state.grabBlock('player-1', block1);
+      const { state: stateWithGrab2 } = stateWithGrab1.grabBlock('player-1', block2);
 
-      expect(newState.getPlayer('player-1')?.grabbedBlockId).toBe(block1);
+      const grabbedIds = stateWithGrab2.getPlayer('player-1')?.grabbedBlockIds ?? [];
+      expect(grabbedIds).toContain(block1);
+      expect(grabbedIds).toContain(block2);
+      expect(grabbedIds).toHaveLength(2);
+    });
+
+    it('should release oldest block when grabbing third block', () => {
+      const state = GameState.create().addPlayer('player-1', 1);
+      const [block1, block2, block3] = getBlockIds(state, 3);
+
+      const { state: state1 } = state.grabBlock('player-1', block1);
+      const { state: state2 } = state1.grabBlock('player-1', block2);
+      const { state: state3, releasedBlockId } = state2.grabBlock('player-1', block3);
+
+      const grabbedIds = state3.getPlayer('player-1')?.grabbedBlockIds ?? [];
+      expect(releasedBlockId).toBe(block1); // Oldest was released
+      expect(grabbedIds).not.toContain(block1);
+      expect(grabbedIds).toContain(block2);
+      expect(grabbedIds).toContain(block3);
+      expect(grabbedIds).toHaveLength(2);
+    });
+
+    it('should not allow grabbing same block twice', () => {
+      const state = GameState.create().addPlayer('player-1', 1);
+      const blockId = getFirstBlockId(state);
+
+      const { state: state1 } = state.grabBlock('player-1', blockId);
+      const { state: state2 } = state1.grabBlock('player-1', blockId);
+
+      expect(state2).toBe(state1); // State unchanged
+      expect(state2.getPlayer('player-1')?.grabbedBlockIds).toHaveLength(1);
     });
   });
 
   describe('releaseBlock', () => {
-    it('should release a grabbed block', () => {
+    it('should release a specific grabbed block', () => {
       const state = GameState.create().addPlayer('player-1', 1);
-      const blockId = getFirstBlockId(state);
+      const [block1, block2] = getBlockIds(state, 2);
 
-      const grabbedState = state.grabBlock('player-1', blockId);
-      const releasedState = grabbedState.releaseBlock('player-1');
+      const { state: state1 } = state.grabBlock('player-1', block1);
+      const { state: state2 } = state1.grabBlock('player-1', block2);
+      const releasedState = state2.releaseBlock('player-1', block1);
 
-      expect(releasedState.getPlayer('player-1')?.grabbedBlockId).toBe(null);
+      const grabbedIds = releasedState.getPlayer('player-1')?.grabbedBlockIds ?? [];
+      expect(grabbedIds).not.toContain(block1);
+      expect(grabbedIds).toContain(block2);
+      expect(grabbedIds).toHaveLength(1);
+    });
+
+    it('should release all blocks when no blockId specified', () => {
+      const state = GameState.create().addPlayer('player-1', 1);
+      const [block1, block2] = getBlockIds(state, 2);
+
+      const { state: state1 } = state.grabBlock('player-1', block1);
+      const { state: state2 } = state1.grabBlock('player-1', block2);
+      const releasedState = state2.releaseBlock('player-1');
+
+      expect(releasedState.getPlayer('player-1')?.grabbedBlockIds).toHaveLength(0);
     });
   });
 
@@ -761,16 +806,16 @@ describe('GameState', () => {
     });
 
     it('should reset grabbed block state', () => {
-      let state = GameState.create().addPlayer('player-1', 1);
+      const state = GameState.create().addPlayer('player-1', 1);
 
       // Grab a block
       const blockId = getFirstBlockId(state);
-      state = state.grabBlock('player-1', blockId);
-      expect(state.getPlayer('player-1')?.grabbedBlockId).toBe(blockId);
+      const { state: grabbedState } = state.grabBlock('player-1', blockId);
+      expect(grabbedState.getPlayer('player-1')?.grabbedBlockIds).toContain(blockId);
 
-      const newState = state.resetForNewRound();
+      const newState = grabbedState.resetForNewRound();
 
-      expect(newState.getPlayer('player-1')?.grabbedBlockId).toBeNull();
+      expect(newState.getPlayer('player-1')?.grabbedBlockIds).toHaveLength(0);
     });
   });
 });

@@ -73,12 +73,21 @@ export interface Projectile {
 }
 
 /**
+ * Maximum number of blocks a player can grab simultaneously.
+ */
+export const MAX_GRABBED_BLOCKS = 2;
+
+/**
  * Player state in the game.
  */
 export interface Player {
   readonly id: PlayerId;
   readonly number: PlayerNumber;
-  readonly grabbedBlockId: BlockId | null;
+  /**
+   * Block IDs currently grabbed by this player.
+   * Ordered by grab time (oldest first). Max length: MAX_GRABBED_BLOCKS.
+   */
+  readonly grabbedBlockIds: readonly BlockId[];
   /** Whether this player is a bot (server-side only) */
   readonly isBot?: boolean;
   /** Whether this player has raised their hand at least once (server-side only) */

@@ -27,6 +27,7 @@ import {
   type GameConfig,
   type GamePhase,
   getPlayerSpawnZ,
+  MAX_GRABBED_BLOCKS,
   type Player,
   type PlayerId,
   type PlayerNumber,
@@ -150,7 +151,19 @@ export class GameState {
    */
   isBlockGrabbedBy(blockId: BlockId, playerId: PlayerId): boolean {
     const player = this._players.get(playerId);
-    return player?.grabbedBlockId === blockId;
+    return player?.grabbedBlockIds.includes(blockId) ?? false;
+  }
+
+  /**
+   * Check if a block is currently grabbed by any player.
+   */
+  isBlockGrabbed(blockId: BlockId): boolean {
+    for (const player of this._players.values()) {
+      if (player.grabbedBlockIds.includes(blockId)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   // ============ Player Management ============
@@ -169,7 +182,7 @@ export class GameState {
     const newPlayer: Player = {
       id: playerId,
       number: playerNumber,
-      grabbedBlockId: null,
+      grabbedBlockIds: [],
       isBot: false,
       isReady: false,
     };
@@ -518,7 +531,7 @@ export class GameState {
     for (const player of this._players.values()) {
       const resetPlayer: Player = {
         ...player,
-        grabbedBlockId: null,
+        grabbedBlockIds: [],
         isReady: !!player.isBot, // Bots stay ready, humans need to raise hand
         wantsPlayAgain: false,
       };
@@ -557,23 +570,42 @@ export class GameState {
 
   /**
    * Grab a block (start dragging it).
+   * If player is already holding MAX_GRABBED_BLOCKS, releases the oldest grab first.
    * @param playerId - ID of the player grabbing
    * @param blockId - ID of the block to grab
-   * @returns New game state with the grab recorded
+   * @returns Object with new state and optionally the released block ID
    */
-  grabBlock(playerId: PlayerId, blockId: BlockId): GameState {
+  grabBlock(
+    playerId: PlayerId,
+    blockId: BlockId
+  ): { state: GameState; releasedBlockId: BlockId | null } {
     const player = this._players.get(playerId);
     const block = this._blocks.get(blockId);
 
-    if (!player || !block) return this;
-    if (block.ownerId !== playerId) return this; // Can only grab own blocks
-    if (player.grabbedBlockId !== null) return this; // Already grabbing
+    if (!player || !block) return { state: this, releasedBlockId: null };
+    if (block.ownerId !== playerId) return { state: this, releasedBlockId: null }; // Can only grab own blocks
+    if (player.grabbedBlockIds.includes(blockId)) return { state: this, releasedBlockId: null }; // Already grabbing this block
 
-    const newPlayer: Player = { ...player, grabbedBlockId: blockId };
+    // Check if block is grabbed by another player
+    if (this.isBlockGrabbed(blockId)) return { state: this, releasedBlockId: null };
+
+    let releasedBlockId: BlockId | null = null;
+    let newGrabbedIds = [...player.grabbedBlockIds];
+
+    // If at max capacity, release the oldest grab (first in array)
+    if (newGrabbedIds.length >= MAX_GRABBED_BLOCKS) {
+      releasedBlockId = newGrabbedIds[0] ?? null;
+      newGrabbedIds = newGrabbedIds.slice(1);
+    }
+
+    // Add new block to end of array (newest)
+    newGrabbedIds.push(blockId);
+
+    const newPlayer: Player = { ...player, grabbedBlockIds: newGrabbedIds };
     const newPlayers = new Map(this._players);
     newPlayers.set(playerId, newPlayer);
 
-    return new GameState(
+    const newState = new GameState(
       this._blocks,
       newPlayers,
       this._projectiles,
@@ -582,19 +614,33 @@ export class GameState {
       this._nextProjectileId,
       this._gamePhase
     );
+
+    return { state: newState, releasedBlockId };
   }
 
   /**
-   * Release a grabbed block.
+   * Release a specific grabbed block.
    * @param playerId - ID of the player releasing
-   * @returns New game state with the grab cleared
+   * @param blockId - ID of the block to release
+   * @returns New game state with the block released
    */
-  releaseBlock(playerId: PlayerId): GameState {
+  releaseBlock(playerId: PlayerId, blockId?: BlockId): GameState {
     const player = this._players.get(playerId);
 
-    if (!player || player.grabbedBlockId === null) return this;
+    if (!player || player.grabbedBlockIds.length === 0) return this;
 
-    const newPlayer: Player = { ...player, grabbedBlockId: null };
+    let newGrabbedIds: BlockId[];
+
+    if (blockId) {
+      // Release specific block
+      if (!player.grabbedBlockIds.includes(blockId)) return this;
+      newGrabbedIds = player.grabbedBlockIds.filter((id) => id !== blockId);
+    } else {
+      // Legacy behavior: release all blocks (or could release oldest)
+      newGrabbedIds = [];
+    }
+
+    const newPlayer: Player = { ...player, grabbedBlockIds: newGrabbedIds };
     const newPlayers = new Map(this._players);
     newPlayers.set(playerId, newPlayer);
 

@@ -1,9 +1,10 @@
 /**
  * @fileoverview Volumetric 3D hand visualization with translucent finger tubes.
+ * Supports rendering multiple hands simultaneously.
  */
 
 import * as THREE from 'three';
-import { HAND_COLORS, HAND_LANDMARKS, HAND_VISUAL } from '../constants.js';
+import { HAND_COLORS, HAND_LANDMARKS, HAND_VISUAL, MEDIAPIPE } from '../constants.js';
 
 /** Finger paths from knuckle to tip (excluding wrist for cleaner gradient) */
 const FINGER_PATHS = [
@@ -22,6 +23,16 @@ const SECONDARY_FINGER_OPACITY = 0.5;
 
 /** Width profile for finger segments (wider at base, narrower at tip) */
 const FINGER_WIDTH = [0.32, 0.26, 0.2, 0.14];
+
+/**
+ * Data structure for a single hand's meshes.
+ */
+interface HandMeshes {
+  fingerMeshes: THREE.Mesh[];
+  fingertipMeshes: THREE.Mesh[];
+  tipMaterial: THREE.MeshStandardMaterial;
+  smoothedPositions: THREE.Vector3[] | null;
+}
 
 /**
  * Custom shader for per-vertex opacity gradient.
@@ -71,28 +82,33 @@ const fingerFragmentShader = `
 `;
 
 /**
- * Renders a volumetric hand with translucent finger tubes.
+ * Renders volumetric hands with translucent finger tubes.
+ * Supports multiple hands simultaneously (up to MAX_HANDS).
  */
 export class HandVisualizer {
   private readonly scene: THREE.Scene;
 
-  // Finger tube meshes (one per finger)
-  private readonly fingerMeshes: THREE.Mesh[] = [];
-
-  // Fingertip spheres for soft ends
-  private readonly fingertipMeshes: THREE.Mesh[] = [];
-
-  // Shared materials
-  private readonly tipMaterial: THREE.MeshStandardMaterial;
-
-  // Smoothed positions for rendering (reduces shakiness)
-  private smoothedPositions: THREE.Vector3[] | null = null;
+  // Meshes for each hand (indexed by hand slot 0, 1, etc.)
+  private readonly handMeshes: HandMeshes[] = [];
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
 
+    // Create meshes for each possible hand
+    for (let handIndex = 0; handIndex < MEDIAPIPE.MAX_HANDS; handIndex++) {
+      this.handMeshes.push(this.createHandMeshes());
+    }
+  }
+
+  /**
+   * Create a complete set of meshes for one hand.
+   */
+  private createHandMeshes(): HandMeshes {
+    const fingerMeshes: THREE.Mesh[] = [];
+    const fingertipMeshes: THREE.Mesh[] = [];
+
     // Create fingertip material (brighter glow)
-    this.tipMaterial = new THREE.MeshStandardMaterial({
+    const tipMaterial = new THREE.MeshStandardMaterial({
       color: HAND_COLORS.NORMAL,
       emissive: HAND_COLORS.NORMAL,
       emissiveIntensity: 0.5,
@@ -127,92 +143,122 @@ export class HandVisualizer {
       mesh.visible = false;
       mesh.renderOrder = 1;
       this.scene.add(mesh);
-      this.fingerMeshes.push(mesh);
+      fingerMeshes.push(mesh);
     }
 
     // Create fingertip meshes only for primary fingers (thumb and index)
     for (let i = 0; i < PRIMARY_FINGERTIPS.length; i++) {
       const geometry = new THREE.SphereGeometry(FINGER_WIDTH[3] ?? 0.14, 12, 12);
-      const mesh = new THREE.Mesh(geometry, this.tipMaterial.clone());
+      const mesh = new THREE.Mesh(geometry, tipMaterial.clone());
       mesh.visible = false;
       mesh.renderOrder = 2;
       this.scene.add(mesh);
-      this.fingertipMeshes.push(mesh);
+      fingertipMeshes.push(mesh);
+    }
+
+    return {
+      fingerMeshes,
+      fingertipMeshes,
+      tipMaterial,
+      smoothedPositions: null,
+    };
+  }
+
+  /**
+   * Update hand visualizations with new positions for multiple hands.
+   * @param handsPositions - Array of position arrays, one per detected hand
+   */
+  update(handsPositions: (THREE.Vector3[] | null)[]): void {
+    // Update each hand slot
+    for (let handIndex = 0; handIndex < this.handMeshes.length; handIndex++) {
+      const handMesh = this.handMeshes[handIndex];
+      const positions = handsPositions[handIndex] ?? null;
+
+      if (!handMesh) continue;
+
+      if (!positions || positions.length < HAND_LANDMARKS.COUNT) {
+        this.hideHand(handIndex);
+        handMesh.smoothedPositions = null;
+        continue;
+      }
+
+      // Apply temporal smoothing to reduce shakiness
+      const renderPositions = this.applySmoothingForHand(handMesh, positions);
+
+      // Update finger tubes
+      for (let i = 0; i < FINGER_PATHS.length; i++) {
+        const path = FINGER_PATHS[i];
+        const mesh = handMesh.fingerMeshes[i];
+        if (!path || !mesh) continue;
+
+        const points: THREE.Vector3[] = [];
+        for (const idx of path) {
+          const pos = renderPositions[idx];
+          if (pos) points.push(pos.clone());
+        }
+
+        if (points.length >= 2) {
+          this.updateFingerTube(mesh, points, i);
+          mesh.visible = true;
+        } else {
+          mesh.visible = false;
+        }
+      }
+
+      // Update fingertip meshes (only for thumb and index)
+      for (let i = 0; i < PRIMARY_FINGERTIPS.length; i++) {
+        const tipIdx = PRIMARY_FINGERTIPS[i];
+        const mesh = handMesh.fingertipMeshes[i];
+        const pos = tipIdx !== undefined ? renderPositions[tipIdx] : undefined;
+
+        if (mesh && pos) {
+          mesh.position.copy(pos);
+          mesh.visible = true;
+        } else if (mesh) {
+          mesh.visible = false;
+        }
+      }
     }
   }
 
   /**
-   * Update hand visualization with new positions.
+   * Apply temporal smoothing to positions for a specific hand.
    */
-  update(positions: THREE.Vector3[] | null): void {
-    if (!positions || positions.length < HAND_LANDMARKS.COUNT) {
-      this.hide();
-      this.smoothedPositions = null;
-      return;
-    }
-
-    // Apply temporal smoothing to reduce shakiness
-    const renderPositions = this.applySmoothing(positions);
-
-    // Update finger tubes
-    for (let i = 0; i < FINGER_PATHS.length; i++) {
-      const path = FINGER_PATHS[i];
-      const mesh = this.fingerMeshes[i];
-      if (!path || !mesh) continue;
-
-      const points: THREE.Vector3[] = [];
-      for (const idx of path) {
-        const pos = renderPositions[idx];
-        if (pos) points.push(pos.clone());
-      }
-
-      if (points.length >= 2) {
-        this.updateFingerTube(mesh, points, i);
-        mesh.visible = true;
-      } else {
-        mesh.visible = false;
-      }
-    }
-
-    // Update fingertip meshes (only for thumb and index)
-    for (let i = 0; i < PRIMARY_FINGERTIPS.length; i++) {
-      const tipIdx = PRIMARY_FINGERTIPS[i];
-      const mesh = this.fingertipMeshes[i];
-      const pos = tipIdx !== undefined ? renderPositions[tipIdx] : undefined;
-
-      if (mesh && pos) {
-        mesh.position.copy(pos);
-        mesh.visible = true;
-      } else if (mesh) {
-        mesh.visible = false;
-      }
-    }
-  }
-
-  /**
-   * Apply temporal smoothing to positions for smoother rendering.
-   * Uses exponential moving average (lerp) between previous and current positions.
-   */
-  private applySmoothing(positions: THREE.Vector3[]): THREE.Vector3[] {
+  private applySmoothingForHand(handMesh: HandMeshes, positions: THREE.Vector3[]): THREE.Vector3[] {
     // Initialize smoothed positions on first frame
-    if (!this.smoothedPositions) {
-      this.smoothedPositions = positions.map((p) => p.clone());
-      return this.smoothedPositions;
+    if (!handMesh.smoothedPositions) {
+      handMesh.smoothedPositions = positions.map((p) => p.clone());
+      return handMesh.smoothedPositions;
     }
 
     // Lerp each position toward the target
     for (let i = 0; i < positions.length; i++) {
       const target = positions[i];
-      const smoothed = this.smoothedPositions[i];
+      const smoothed = handMesh.smoothedPositions[i];
 
       if (target && smoothed) {
         smoothed.lerp(target, HAND_VISUAL.SMOOTHING_FACTOR);
       } else if (target && !smoothed) {
-        this.smoothedPositions[i] = target.clone();
+        handMesh.smoothedPositions[i] = target.clone();
       }
     }
 
-    return this.smoothedPositions;
+    return handMesh.smoothedPositions;
+  }
+
+  /**
+   * Hide all meshes for a specific hand.
+   */
+  private hideHand(handIndex: number): void {
+    const handMesh = this.handMeshes[handIndex];
+    if (!handMesh) return;
+
+    for (const mesh of handMesh.fingerMeshes) {
+      mesh.visible = false;
+    }
+    for (const mesh of handMesh.fingertipMeshes) {
+      mesh.visible = false;
+    }
   }
 
   /**
@@ -341,14 +387,11 @@ export class HandVisualizer {
   }
 
   /**
-   * Hide all hand visualization elements.
+   * Hide all hand visualization elements for all hands.
    */
   hide(): void {
-    for (const mesh of this.fingerMeshes) {
-      mesh.visible = false;
-    }
-    for (const mesh of this.fingertipMeshes) {
-      mesh.visible = false;
+    for (let i = 0; i < this.handMeshes.length; i++) {
+      this.hideHand(i);
     }
   }
 
@@ -356,18 +399,20 @@ export class HandVisualizer {
    * Dispose of all resources.
    */
   dispose(): void {
-    for (const mesh of this.fingerMeshes) {
-      this.scene.remove(mesh);
-      mesh.geometry.dispose();
-      (mesh.material as THREE.Material).dispose();
-    }
+    for (const handMesh of this.handMeshes) {
+      for (const mesh of handMesh.fingerMeshes) {
+        this.scene.remove(mesh);
+        mesh.geometry.dispose();
+        (mesh.material as THREE.Material).dispose();
+      }
 
-    for (const mesh of this.fingertipMeshes) {
-      this.scene.remove(mesh);
-      mesh.geometry.dispose();
-      (mesh.material as THREE.Material).dispose();
-    }
+      for (const mesh of handMesh.fingertipMeshes) {
+        this.scene.remove(mesh);
+        mesh.geometry.dispose();
+        (mesh.material as THREE.Material).dispose();
+      }
 
-    this.tipMaterial.dispose();
+      handMesh.tipMaterial.dispose();
+    }
   }
 }

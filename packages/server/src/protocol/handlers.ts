@@ -114,6 +114,7 @@ function handleJoinGame(
 
 /**
  * Handle block_grab message - player wants to grab a block.
+ * If player is already at max grabs, releases the oldest block automatically.
  */
 function handleBlockGrab(
   message: Extract<ClientMessage, { type: 'block_grab' }>,
@@ -126,23 +127,35 @@ function handleBlockGrab(
   }
 
   const { blockId } = message;
-  const newState = state.grabBlock(context.playerId, blockId);
+  const { state: newState, releasedBlockId } = state.grabBlock(context.playerId, blockId);
 
   // Only broadcast if the grab was successful (state changed)
   if (newState !== state) {
-    return {
-      newState,
-      responses: [
-        {
-          target: 'opponent',
-          message: {
-            type: 'block_grabbed',
-            playerId: context.playerId,
-            blockId,
-          },
+    const responses: MessageResponse[] = [];
+
+    // If a block was auto-released (due to max grab limit), broadcast release first
+    if (releasedBlockId) {
+      responses.push({
+        target: 'opponent',
+        message: {
+          type: 'block_released',
+          playerId: context.playerId,
+          blockId: releasedBlockId,
         },
-      ],
-    };
+      });
+    }
+
+    // Broadcast the new grab
+    responses.push({
+      target: 'opponent',
+      message: {
+        type: 'block_grabbed',
+        playerId: context.playerId,
+        blockId,
+      },
+    });
+
+    return { newState, responses };
   }
 
   return { newState: state, responses: [] };
@@ -163,11 +176,12 @@ function handleBlockMove(
 
   const { blockId, position } = message;
 
-  // Validate ownership and grab state
+  // Validate ownership
   if (!state.isBlockOwnedBy(blockId, context.playerId)) {
     return { newState: state, responses: [] };
   }
 
+  // Validate grab state (player must have this block in their grabbed list)
   if (!state.isBlockGrabbedBy(blockId, context.playerId)) {
     return { newState: state, responses: [] };
   }
@@ -203,11 +217,11 @@ function handleBlockRelease(
   const { blockId } = message;
   const player = state.getPlayer(context.playerId);
 
-  if (!player || player.grabbedBlockId !== blockId) {
+  if (!player || !player.grabbedBlockIds.includes(blockId)) {
     return { newState: state, responses: [] };
   }
 
-  const newState = state.releaseBlock(context.playerId);
+  const newState = state.releaseBlock(context.playerId, blockId);
 
   return {
     newState,

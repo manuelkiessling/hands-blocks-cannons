@@ -12,9 +12,10 @@ import type {
   ConnectionState,
   GameInitData,
   GamePhase,
-  HandLandmarks,
+  MultiHandResult,
   Position,
   RoomBounds,
+  TrackedHand,
 } from './types.js';
 import { StatusDisplay } from './ui/index.js';
 
@@ -44,8 +45,8 @@ class Game {
   private gamePhase: GamePhase = 'waiting';
   private playerReadySent = false;
 
-  // Current hand landmarks for interaction processing
-  private currentLandmarks: HandLandmarks | null = null;
+  // Current tracked hands for interaction processing (supports multiple hands)
+  private currentHands: MultiHandResult = [];
 
   constructor() {
     // Get container element
@@ -344,9 +345,9 @@ class Game {
 
   private async initHandTracking(): Promise<void> {
     try {
-      await this.handTracker.initialize((landmarks) => {
-        this.currentLandmarks = landmarks;
-        this.processHandUpdate(landmarks);
+      await this.handTracker.initialize((hands) => {
+        this.currentHands = hands;
+        this.processHandUpdate(hands);
       });
 
       this.handTracker.start();
@@ -370,8 +371,8 @@ class Game {
     }
   }
 
-  private processHandUpdate(landmarks: HandLandmarks | null): void {
-    if (!landmarks) {
+  private processHandUpdate(hands: MultiHandResult): void {
+    if (hands.length === 0) {
       this.handVisualizer.hide();
       return;
     }
@@ -390,9 +391,11 @@ class Game {
       }
     }
 
-    // Convert landmarks to 3D and update visualization
-    const positions3D = this.gestureDetector.landmarksTo3D(landmarks);
-    this.handVisualizer.update(positions3D);
+    // Convert each hand's landmarks to 3D and update visualization
+    const handsPositions3D = hands.map((hand: TrackedHand) =>
+      this.gestureDetector.landmarksTo3D(hand.landmarks)
+    );
+    this.handVisualizer.update(handsPositions3D);
   }
 
   // ============ Animation Loop ============
@@ -405,16 +408,41 @@ class Game {
     this.lastFrameTime = elapsed;
 
     // Process interaction only when game is playing
-    if (this.playerId && this.currentLandmarks && this.gamePhase === 'playing') {
-      const pinchPoint = this.gestureDetector.getPinchPoint(this.currentLandmarks);
-      const isPinching = this.gestureDetector.isPinching(this.currentLandmarks);
-      const status = this.interactionManager.processInteraction(pinchPoint, isPinching);
-      this.statusDisplay.updateInteractionStatus(status, this.opponentConnected);
+    if (this.playerId && this.gamePhase === 'playing') {
+      // Track which hands we've seen this frame
+      const seenHands = new Set<'Left' | 'Right'>();
+      const statuses: string[] = [];
+
+      // Process each detected hand
+      for (const hand of this.currentHands) {
+        seenHands.add(hand.handedness);
+        const pinchPoint = this.gestureDetector.getPinchPoint(hand.landmarks);
+        const isPinching = this.gestureDetector.isPinching(hand.landmarks);
+        const status = this.interactionManager.processInteraction(
+          hand.handedness,
+          pinchPoint,
+          isPinching
+        );
+        statuses.push(status);
+      }
+
+      // Mark any hands that weren't detected as lost
+      const allHands: Array<'Left' | 'Right'> = ['Left', 'Right'];
+      for (const handedness of allHands) {
+        if (!seenHands.has(handedness)) {
+          this.interactionManager.markHandLost(handedness);
+        }
+      }
+
+      // Show status from the first active hand (or first status if grabbing)
+      const activeStatus =
+        statuses.find((s) => s === 'Grabbing') ?? statuses[0] ?? 'No hand detected';
+      this.statusDisplay.updateInteractionStatus(activeStatus, this.opponentConnected);
     }
 
-    // Update animations
-    const grabbedBlockId = this.interactionManager.getGrabbedBlockId();
-    this.blockRenderer.updateAnimations(elapsed, grabbedBlockId);
+    // Update animations - pass all grabbed block IDs
+    const grabbedBlockIds = this.interactionManager.getGrabbedBlockIds();
+    this.blockRenderer.updateAnimations(elapsed, null, grabbedBlockIds);
     this.effectsManager.update(deltaTime);
     this.sceneManager.update(elapsed);
     this.roomRenderer.update(elapsed);
@@ -430,7 +458,7 @@ class Game {
     this.playerNumber = null;
     this.room = null;
     this.opponentConnected = false;
-    this.currentLandmarks = null;
+    this.currentHands = [];
     this.gamePhase = 'waiting';
     this.playerReadySent = false;
 
