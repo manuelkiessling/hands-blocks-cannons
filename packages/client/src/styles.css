@@ -178,7 +178,7 @@ body {
   align-items: center;
   justify-content: center;
   z-index: 999;
-  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-family: "Segoe UI", system-ui, sans-serif;
   animation: overlayFadeIn 0.3s ease-out;
 }
 
@@ -250,7 +250,8 @@ body {
 }
 
 @keyframes handPulse {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1) translateY(0);
     opacity: 1;
   }
@@ -333,7 +334,8 @@ body {
 }
 
 @keyframes waitingPulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.5;
   }
   50% {

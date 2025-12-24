@@ -84,6 +84,9 @@ function handleStartBotGame(): void {
   startGame('bot', difficulty);
 }
 
+// Countdown duration in seconds before Join button is enabled
+const CONTAINER_READY_DELAY_SECONDS = 4;
+
 async function startGame(opponentType: 'bot' | 'human', botDifficulty?: number): Promise<void> {
   showScreen('loading');
   if (loadingText) {
@@ -105,9 +108,41 @@ async function startGame(opponentType: 'bot' | 'human', botDifficulty?: number):
         shareSection.classList.add('hidden');
       }
     }
+
+    // Disable Join button and show countdown while container starts
+    startJoinCountdown();
   } catch (err) {
     showError(err instanceof Error ? err.message : 'An unexpected error occurred');
   }
+}
+
+function startJoinCountdown(): void {
+  if (!joinGameBtn) return;
+
+  // Disable button and start countdown
+  joinGameBtn.setAttribute('disabled', 'true');
+  let secondsLeft = CONTAINER_READY_DELAY_SECONDS;
+
+  const updateButtonText = (): void => {
+    if (joinGameBtn) {
+      joinGameBtn.textContent = `Preparing... ${secondsLeft}s`;
+    }
+  };
+
+  updateButtonText();
+
+  const countdownInterval = setInterval(() => {
+    secondsLeft--;
+    if (secondsLeft <= 0) {
+      clearInterval(countdownInterval);
+      if (joinGameBtn) {
+        joinGameBtn.removeAttribute('disabled');
+        joinGameBtn.textContent = 'Join Game';
+      }
+    } else {
+      updateButtonText();
+    }
+  }, 1000);
 }
 
 function handleCopyUrl(): void {
