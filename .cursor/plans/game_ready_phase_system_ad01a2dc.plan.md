@@ -107,4 +107,3 @@ Add new message types:
 
 - **Human detection**: Server counts players where `isBot === false` and `isReady === false`
 - **Ready condition**: Game starts when all non-bot players have `isReady === true`
-- **Bot games (1v1 vs bot)**: 1 human must be ready
