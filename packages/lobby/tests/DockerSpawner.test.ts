@@ -38,10 +38,9 @@ describe('DockerSpawner', () => {
       expect(mockExecFile).toHaveBeenCalledTimes(1);
       const [cmd, args] = mockExecFile.mock.calls[0] as [string, string[]];
 
-      expect(cmd).toBe('sudo');
-      expect(args[0]).toBe('-n');
-      expect(args[1]).toBe('/test/wrapper.sh');
-      expect(args[2]).toBe('run');
+      expect(cmd).toBe('bash');
+      expect(args[0]).toBe('/test/wrapper.sh');
+      expect(args[1]).toBe('run');
 
       // Check container name
       expect(args).toContain('--name');
@@ -106,7 +105,8 @@ describe('DockerSpawner', () => {
       expect(mockExecFile).toHaveBeenCalledTimes(1);
       const [cmd, args] = mockExecFile.mock.calls[0] as [string, string[]];
 
-      expect(cmd).toBe('sudo');
+      expect(cmd).toBe('bash');
+      expect(args[0]).toBe('/test/wrapper.sh');
       expect(args).toContain('stop');
       expect(args).toContain('hbc-session-abc123');
     });
@@ -119,7 +119,8 @@ describe('DockerSpawner', () => {
       expect(mockExecFile).toHaveBeenCalledTimes(1);
       const [cmd, args] = mockExecFile.mock.calls[0] as [string, string[]];
 
-      expect(cmd).toBe('sudo');
+      expect(cmd).toBe('bash');
+      expect(args[0]).toBe('/test/wrapper.sh');
       expect(args).toContain('rm');
       expect(args).toContain('hbc-session-abc123');
     });
