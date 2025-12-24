@@ -65,6 +65,19 @@ export const BLOCK_COLLISION_ENABLED = yamlConfig.blocks.collision;
 /** Server tick rate in milliseconds */
 export const TICK_RATE_MS = yamlConfig.tickRate;
 
+// ============ Inactivity / Cleanup Constants ============
+
+/** Inactivity timeout in milliseconds before server auto-shutdown */
+// Environment variable override takes precedence over YAML config
+// biome-ignore lint/complexity/useLiteralKeys: Required for noPropertyAccessFromIndexSignature
+const inactivityEnvValue = process.env['INACTIVITY_TIMEOUT_MS'];
+export const INACTIVITY_TIMEOUT_MS = inactivityEnvValue
+  ? Number.parseInt(inactivityEnvValue, 10)
+  : yamlConfig.inactivity.timeoutMs;
+
+/** Interval in milliseconds between inactivity checks */
+export const INACTIVITY_CHECK_INTERVAL_MS = yamlConfig.inactivity.checkIntervalMs;
+
 /** Camera distance from room edge (units) */
 export const CAMERA_DISTANCE = yamlConfig.camera.distance;
 

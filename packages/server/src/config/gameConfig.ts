@@ -36,6 +36,10 @@ const GameConfigSchema = z.object({
     highlightIntensity: z.number().min(0).max(1),
   }),
   tickRate: z.number().int().positive(),
+  inactivity: z.object({
+    timeoutMs: z.number().int().positive(),
+    checkIntervalMs: z.number().int().positive(),
+  }),
 });
 
 export type GameConfigYaml = z.infer<typeof GameConfigSchema>;

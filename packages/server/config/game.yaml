@@ -52,3 +52,11 @@ wallGrid:
 # Server tick rate in milliseconds
 tickRate: 50
 
+# Inactivity / cleanup settings
+inactivity:
+  # Time in milliseconds before server auto-shutdown due to inactivity (default: 5 minutes)
+  # Can be overridden by INACTIVITY_TIMEOUT_MS environment variable
+  timeoutMs: 300000
+  # Interval in milliseconds between inactivity checks
+  checkIntervalMs: 30000
+

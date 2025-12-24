@@ -6,7 +6,14 @@ const PORT = Number(process.env['PORT']) || 3001;
 
 logger.info('Starting Block Game Server...');
 
-const server = new BlockGameServer({ port: PORT });
+const server = new BlockGameServer({
+  port: PORT,
+  onInactivityShutdown: (reason: string) => {
+    logger.info('Inactivity shutdown triggered', { reason });
+    server.close();
+    process.exit(0);
+  },
+});
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
