@@ -14,78 +14,215 @@ import {
 import type { Block, BlockEntity, Projectile, ProjectileEntity, RoomBounds } from '../types.js';
 
 /**
- * Create a distinctive cannon mesh with octagonal barrel and muzzle.
- * @param color - The cannon color
+ * Create a spaceship-style cannon mesh.
+ * Designed to look good from behind (player's view) with glowing engines
+ * and a pointed nose facing the enemy.
+ * @param color - The cannon/ship color
  * @param isMyBlock - Whether this cannon belongs to the local player
- * @returns A group containing the cannon mesh components
+ * @returns A group containing the spaceship mesh components
  */
 function createCannonMesh(color: number, isMyBlock: boolean): THREE.Group {
   const group = new THREE.Group();
+  const baseOpacity = isMyBlock ? 0.95 : 0.6;
 
-  // Main barrel - octagonal cylinder
-  const barrelGeometry = new THREE.CylinderGeometry(0.35, 0.4, 1.2, 8);
-  barrelGeometry.rotateX(Math.PI / 2); // Point forward along Z
+  // Main fuselage - tapered body (wider at back, narrow at front)
+  // Using a custom shape for the hull
+  const hullShape = new THREE.Shape();
+  hullShape.moveTo(0, 0.25); // Top center back
+  hullShape.lineTo(0.35, 0.15); // Top right back
+  hullShape.lineTo(0.3, -0.15); // Bottom right back
+  hullShape.lineTo(0, -0.25); // Bottom center back
+  hullShape.lineTo(-0.3, -0.15); // Bottom left back
+  hullShape.lineTo(-0.35, 0.15); // Top left back
+  hullShape.closePath();
 
-  const barrelMaterial = new THREE.MeshStandardMaterial({
+  const extrudeSettings = {
+    steps: 1,
+    depth: 1.4,
+    bevelEnabled: true,
+    bevelThickness: 0.08,
+    bevelSize: 0.05,
+    bevelSegments: 2,
+  };
+
+  const hullGeometry = new THREE.ExtrudeGeometry(hullShape, extrudeSettings);
+  hullGeometry.translate(0, 0, -0.7); // Center it
+
+  const hullMaterial = new THREE.MeshStandardMaterial({
     color,
     transparent: true,
-    opacity: isMyBlock ? 0.95 : 0.6,
+    opacity: baseOpacity,
     emissive: color,
-    emissiveIntensity: CANNON_VISUAL.EMISSIVE_INTENSITY,
-    metalness: 0.7,
-    roughness: 0.3,
+    emissiveIntensity: CANNON_VISUAL.EMISSIVE_INTENSITY * 0.5,
+    metalness: 0.6,
+    roughness: 0.4,
     polygonOffset: true,
     polygonOffsetFactor: 1,
     polygonOffsetUnits: 1,
   });
 
-  const barrel = new THREE.Mesh(barrelGeometry, barrelMaterial);
-  barrel.position.z = 0.1; // Slight offset forward
-  group.add(barrel);
+  const hull = new THREE.Mesh(hullGeometry, hullMaterial);
+  group.add(hull);
 
-  // Muzzle ring at the front
-  const muzzleGeometry = new THREE.TorusGeometry(0.38, 0.08, 8, 8);
-  muzzleGeometry.rotateX(Math.PI / 2);
+  // Nose cone (pointed front)
+  const noseGeometry = new THREE.ConeGeometry(0.2, 0.5, 6);
+  noseGeometry.rotateX(-Math.PI / 2); // Point forward along -Z
 
-  const muzzleMaterial = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
+  const noseMaterial = new THREE.MeshStandardMaterial({
+    color: 0xcccccc,
     emissive: color,
-    emissiveIntensity: CANNON_VISUAL.MUZZLE_GLOW,
-    metalness: 0.9,
-    roughness: 0.1,
-  });
-
-  const muzzle = new THREE.Mesh(muzzleGeometry, muzzleMaterial);
-  muzzle.position.z = -0.5; // At the front of barrel
-  group.add(muzzle);
-
-  // Inner glow core (visible from muzzle)
-  const coreGeometry = new THREE.CircleGeometry(0.25, 16);
-  const coreMaterial = new THREE.MeshBasicMaterial({
-    color,
-    transparent: true,
-    opacity: 0.9,
-    side: THREE.DoubleSide,
-  });
-  const core = new THREE.Mesh(coreGeometry, coreMaterial);
-  core.position.z = -0.52;
-  group.add(core);
-
-  // Back cap with accent ring
-  const backCapGeometry = new THREE.CylinderGeometry(0.42, 0.35, 0.15, 8);
-  backCapGeometry.rotateX(Math.PI / 2);
-
-  const backCapMaterial = new THREE.MeshStandardMaterial({
-    color: 0x333333,
-    emissive: color,
-    emissiveIntensity: 0.15,
+    emissiveIntensity: 0.2,
     metalness: 0.8,
     roughness: 0.2,
   });
 
-  const backCap = new THREE.Mesh(backCapGeometry, backCapMaterial);
-  backCap.position.z = 0.65;
-  group.add(backCap);
+  const nose = new THREE.Mesh(noseGeometry, noseMaterial);
+  nose.position.z = -0.95; // At the front
+  group.add(nose);
+
+  // Cockpit canopy (small dome on top)
+  const canopyGeometry = new THREE.SphereGeometry(0.15, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+  const canopyMaterial = new THREE.MeshStandardMaterial({
+    color: 0x4488ff,
+    transparent: true,
+    opacity: 0.7,
+    emissive: 0x2244aa,
+    emissiveIntensity: 0.3,
+    metalness: 0.1,
+    roughness: 0.1,
+  });
+
+  const canopy = new THREE.Mesh(canopyGeometry, canopyMaterial);
+  canopy.position.set(0, 0.28, -0.2);
+  group.add(canopy);
+
+  // Wings (angled fins on each side)
+  const wingShape = new THREE.Shape();
+  wingShape.moveTo(0, 0);
+  wingShape.lineTo(0.5, -0.1);
+  wingShape.lineTo(0.4, 0.05);
+  wingShape.lineTo(0, 0.08);
+  wingShape.closePath();
+
+  const wingExtrudeSettings = {
+    steps: 1,
+    depth: 0.04,
+    bevelEnabled: false,
+  };
+
+  const wingGeometry = new THREE.ExtrudeGeometry(wingShape, wingExtrudeSettings);
+
+  const wingMaterial = new THREE.MeshStandardMaterial({
+    color,
+    transparent: true,
+    opacity: baseOpacity,
+    emissive: color,
+    emissiveIntensity: CANNON_VISUAL.EMISSIVE_INTENSITY * 0.3,
+    metalness: 0.7,
+    roughness: 0.3,
+  });
+
+  // Right wing
+  const rightWing = new THREE.Mesh(wingGeometry, wingMaterial);
+  rightWing.position.set(0.25, 0, 0.2);
+  rightWing.rotation.x = -Math.PI / 12; // Slight angle
+  group.add(rightWing);
+
+  // Left wing (mirrored)
+  const leftWingGeometry = wingGeometry.clone();
+  leftWingGeometry.scale(-1, 1, 1);
+  const leftWing = new THREE.Mesh(leftWingGeometry, wingMaterial.clone());
+  leftWing.position.set(-0.25, 0, 0.2);
+  leftWing.rotation.x = -Math.PI / 12;
+  group.add(leftWing);
+
+  // Engine housings (back of ship - what player sees most)
+  const engineHousingGeometry = new THREE.CylinderGeometry(0.12, 0.15, 0.25, 8);
+  engineHousingGeometry.rotateX(Math.PI / 2);
+
+  const engineHousingMaterial = new THREE.MeshStandardMaterial({
+    color: 0x333333,
+    metalness: 0.9,
+    roughness: 0.2,
+  });
+
+  // Left engine housing
+  const leftEngineHousing = new THREE.Mesh(engineHousingGeometry, engineHousingMaterial);
+  leftEngineHousing.position.set(-0.2, -0.05, 0.75);
+  group.add(leftEngineHousing);
+
+  // Right engine housing
+  const rightEngineHousing = new THREE.Mesh(engineHousingGeometry, engineHousingMaterial.clone());
+  rightEngineHousing.position.set(0.2, -0.05, 0.75);
+  group.add(rightEngineHousing);
+
+  // Engine glow cores (bright circles at the back - highly visible)
+  const engineGlowGeometry = new THREE.CircleGeometry(0.1, 16);
+  const engineGlowMaterial = new THREE.MeshBasicMaterial({
+    color: color,
+    transparent: true,
+    opacity: 0.95,
+    side: THREE.DoubleSide,
+  });
+
+  // Left engine glow
+  const leftEngineGlow = new THREE.Mesh(engineGlowGeometry, engineGlowMaterial);
+  leftEngineGlow.position.set(-0.2, -0.05, 0.88);
+  leftEngineGlow.name = 'engineGlow';
+  group.add(leftEngineGlow);
+
+  // Right engine glow
+  const rightEngineGlow = new THREE.Mesh(engineGlowGeometry, engineGlowMaterial.clone());
+  rightEngineGlow.position.set(0.2, -0.05, 0.88);
+  rightEngineGlow.name = 'engineGlow';
+  group.add(rightEngineGlow);
+
+  // Engine outer rings (gives depth)
+  const engineRingGeometry = new THREE.RingGeometry(0.1, 0.14, 16);
+  const engineRingMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffaa00,
+    transparent: true,
+    opacity: 0.8,
+    side: THREE.DoubleSide,
+  });
+
+  const leftEngineRing = new THREE.Mesh(engineRingGeometry, engineRingMaterial);
+  leftEngineRing.position.set(-0.2, -0.05, 0.885);
+  group.add(leftEngineRing);
+
+  const rightEngineRing = new THREE.Mesh(engineRingGeometry, engineRingMaterial.clone());
+  rightEngineRing.position.set(0.2, -0.05, 0.885);
+  group.add(rightEngineRing);
+
+  // Weapon barrel (center, pointing forward)
+  const barrelGeometry = new THREE.CylinderGeometry(0.04, 0.05, 0.6, 8);
+  barrelGeometry.rotateX(Math.PI / 2);
+
+  const barrelMaterial = new THREE.MeshStandardMaterial({
+    color: 0x666666,
+    emissive: color,
+    emissiveIntensity: 0.1,
+    metalness: 0.9,
+    roughness: 0.1,
+  });
+
+  const barrel = new THREE.Mesh(barrelGeometry, barrelMaterial);
+  barrel.position.set(0, -0.1, -0.5);
+  group.add(barrel);
+
+  // Muzzle glow at barrel tip
+  const muzzleGlowGeometry = new THREE.CircleGeometry(0.06, 12);
+  const muzzleGlowMaterial = new THREE.MeshBasicMaterial({
+    color: color,
+    transparent: true,
+    opacity: 0.9,
+    side: THREE.DoubleSide,
+  });
+
+  const muzzleGlow = new THREE.Mesh(muzzleGlowGeometry, muzzleGlowMaterial);
+  muzzleGlow.position.set(0, -0.1, -0.81);
+  muzzleGlow.name = 'muzzleGlow';
+  group.add(muzzleGlow);
 
   return group;
 }
@@ -208,9 +345,12 @@ export class BlockRenderer {
 
     mesh.position.set(blockData.position.x, blockData.position.y, blockData.position.z);
 
-    // Orient cannon to point towards enemy
+    // Orient cannon to point towards its owner's enemy
     if (isCannon && this.playerNumber) {
-      mesh.rotation.y = this.playerNumber === 1 ? 0 : Math.PI;
+      // Determine cannon owner's player number (same logic as laser beam)
+      const ownerPlayerNumber = isMyBlock ? this.playerNumber : (this.playerNumber === 1 ? 2 : 1);
+      // Player 1's ship points toward -Z, Player 2's ship points toward +Z
+      mesh.rotation.y = ownerPlayerNumber === 1 ? 0 : Math.PI;
     }
 
     const entity: BlockEntity = {
@@ -612,17 +752,31 @@ export class BlockRenderer {
           this.updateLaserBeam(id, entity.mesh.position);
         }
 
-        // Pulse the cannon emissive glow
+        // Pulse the spaceship cannon effects
         if (entity.mesh instanceof THREE.Group) {
           const pulseIntensity =
             CANNON_VISUAL.EMISSIVE_INTENSITY +
             Math.sin(elapsedTime * CANNON_VISUAL.PULSE_SPEED + entity.phase) *
               CANNON_VISUAL.PULSE_RANGE;
 
+          // Engine throb effect (faster pulse for engines)
+          const enginePulse = 0.8 + Math.sin(elapsedTime * 8 + entity.phase) * 0.2;
+
           entity.mesh.traverse((child) => {
-            if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
-              if (child.material.emissiveIntensity > 0.1) {
-                child.material.emissiveIntensity = pulseIntensity;
+            if (child instanceof THREE.Mesh) {
+              // Pulse emissive materials
+              if (child.material instanceof THREE.MeshStandardMaterial) {
+                if (child.material.emissiveIntensity > 0.1) {
+                  child.material.emissiveIntensity = pulseIntensity;
+                }
+              }
+              // Pulse engine glows and muzzle (MeshBasicMaterial)
+              if (child.material instanceof THREE.MeshBasicMaterial) {
+                if (child.name === 'engineGlow') {
+                  child.material.opacity = enginePulse;
+                } else if (child.name === 'muzzleGlow') {
+                  child.material.opacity = 0.7 + Math.sin(elapsedTime * 4 + entity.phase) * 0.3;
+                }
               }
             }
           });
