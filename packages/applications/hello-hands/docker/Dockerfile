@@ -7,7 +7,7 @@
 # Build from repo root:
 #   docker build -t hello-hands-game-session -f packages/applications/hello-hands/docker/Dockerfile .
 
-FROM node:22-alpine AS builder
+FROM node:24-bookworm-slim AS builder
 
 WORKDIR /build
 
@@ -36,9 +36,10 @@ RUN npm run build --workspace=@gesture-app/hello-hands
 RUN npm run build:client --workspace=@gesture-app/hello-hands
 
 # Production image
-FROM node:22-alpine
+FROM node:24-bookworm-slim
 
-RUN apk add --no-cache nginx
+RUN apt-get update && apt-get install -y --no-install-recommends nginx \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

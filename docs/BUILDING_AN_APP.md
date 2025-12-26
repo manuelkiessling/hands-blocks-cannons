@@ -115,7 +115,8 @@ packages/applications/my-app/
     "dev": "tsx src/server/server.ts",
     "check": "biome check --write .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:client": "vitest run --config client/vitest.config.ts"
   },
   "dependencies": {
     "@gesture-app/framework-protocol": "^1.0.0",
@@ -699,7 +700,7 @@ And add the dependency to `packages/lobby/package.json`:
 Create `docker/Dockerfile`:
 
 ```dockerfile
-FROM node:22-alpine AS builder
+FROM node:24-bookworm-slim AS builder
 WORKDIR /build
 COPY package*.json ./
 COPY packages/framework/protocol/package.json packages/framework/protocol/
@@ -720,8 +721,9 @@ RUN npm run build --workspace=@gesture-app/framework-server
 RUN npm run build --workspace=@gesture-app/my-app
 RUN npm run build:client --workspace=@gesture-app/my-app
 
-FROM node:22-alpine
-RUN apk add --no-cache nginx
+FROM node:24-bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends nginx \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 COPY --from=builder /build/packages/framework/protocol/dist ./packages/framework/protocol/dist
@@ -911,6 +913,45 @@ Understanding the session lifecycle helps you build the right UX:
 | `onReset()` | All voted to play again | Reset data for clients |
 | `onTick?(deltaTime)` | Each tick (if enabled) | Messages to broadcast |
 | `checkSessionEnd?()` | Each tick (if enabled) | Winner info or null |
+
+## SessionClient (Framework Client)
+
+For clients that need to resolve session configuration (WebSocket URL, lobby URL, etc.), use `SessionClient` from `@gesture-app/framework-client`:
+
+```typescript
+import {
+  resolveSessionConfig,
+  SessionClient,
+  type SessionClientConfig,
+} from '@gesture-app/framework-client';
+
+// Resolve configuration (checks window.__SESSION_CONFIG__, /session.json, or falls back to local dev)
+const config = await resolveSessionConfig();
+
+if (config.mode === 'injected' || config.mode === 'fetched') {
+  // Production: use the resolved WebSocket URL
+  connect(config.config.wsUrl);
+} else {
+  // Local development: show manual connect UI
+  showManualConnectForm();
+}
+```
+
+The `SessionClient` class provides a higher-level abstraction with lifecycle events:
+
+```typescript
+const clientConfig: SessionClientConfig = {
+  wsUrl: 'ws://localhost:8080',
+  // Optional callbacks for lifecycle events
+  onWelcome: (data) => console.log('Welcome!', data),
+  onOpponentJoined: () => console.log('Opponent joined!'),
+  onSessionStarted: () => console.log('Game started!'),
+  onSessionEnded: (winner) => console.log('Winner:', winner),
+};
+
+const client = new SessionClient(clientConfig);
+client.connect();
+```
 
 ## Message Routing
 
