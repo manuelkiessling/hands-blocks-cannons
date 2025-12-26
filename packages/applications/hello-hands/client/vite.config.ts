@@ -1,13 +1,29 @@
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
+import { viteStaticCopy } from 'vite-plugin-static-copy';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
-  root: resolve(__dirname),
+  base: './',
   build: {
-    outDir: resolve(__dirname, '../dist/client'),
+    outDir: '../dist/client',
     emptyOutDir: true,
+    target: 'ES2022',
   },
   server: {
     port: 5174,
   },
+  plugins: [
+    viteStaticCopy({
+      targets: [
+        {
+          // Copy MediaPipe hands assets
+          src: resolve(__dirname, '../../../../node_modules/@mediapipe/hands/*'),
+          dest: 'mediapipe/hands',
+        },
+      ],
+    }),
+  ],
 });

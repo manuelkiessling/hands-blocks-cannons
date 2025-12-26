@@ -31,6 +31,8 @@
   "dependencies": {
     "@gesture-app/framework-protocol": "^1.0.0",
     "@gesture-app/framework-server": "^1.0.0",
+    "@mediapipe/camera_utils": "^0.3.1675466862",
+    "@mediapipe/hands": "^0.4.1675469240",
     "ws": "^8.18.0",
     "zod": "^4.0.0"
   },
@@ -42,6 +44,7 @@
     "tsx": "^4.19.0",
     "typescript": "^5.8.3",
     "vite": "^6.0.0",
+    "vite-plugin-static-copy": "^2.3.0",
     "vitest": "^4.0.0"
   }
 }

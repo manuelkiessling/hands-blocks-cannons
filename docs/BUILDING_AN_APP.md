@@ -937,10 +937,205 @@ interface MessageResponse<T> {
 4. **Test with two windows** - Always test the two-participant flow locally
 5. **Log on the server** - Console logs help debug session lifecycle issues
 
+---
+
+## Adding Hand Tracking (MediaPipe)
+
+The framework is designed for hand-gesture-driven apps. Here's how to add camera-based hand tracking.
+
+### 1. Add Dependencies
+
+```json
+{
+  "dependencies": {
+    "@mediapipe/camera_utils": "^0.3.1675466862",
+    "@mediapipe/hands": "^0.4.1675469240"
+  },
+  "devDependencies": {
+    "vite-plugin-static-copy": "^2.3.0"
+  }
+}
+```
+
+### 2. Configure Vite to Copy MediaPipe Assets
+
+```typescript
+// client/vite.config.ts
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { defineConfig } from 'vite';
+import { viteStaticCopy } from 'vite-plugin-static-copy';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+export default defineConfig({
+  base: './',
+  plugins: [
+    viteStaticCopy({
+      targets: [
+        {
+          src: resolve(__dirname, '../../../../node_modules/@mediapipe/hands/*'),
+          dest: 'mediapipe/hands',
+        },
+      ],
+    }),
+  ],
+});
+```
+
+### 3. Create HandTracker Module
+
+```typescript
+// client/input/HandTracker.ts
+import { Camera } from '@mediapipe/camera_utils';
+import { Hands } from '@mediapipe/hands';
+
+export interface HandState {
+  position: { x: number; y: number };
+  isPinching: boolean;
+  isRaised: boolean;
+}
+
+export type HandCallback = (hand: HandState | null) => void;
+
+export class HandTracker {
+  private hands: Hands | null = null;
+  private camera: Camera | null = null;
+  private readonly video: HTMLVideoElement;
+  private callback: HandCallback | null = null;
+  private isRunning = false;
+
+  constructor(videoElement: HTMLVideoElement) {
+    this.video = videoElement;
+  }
+
+  async initialize(onHand: HandCallback): Promise<void> {
+    this.callback = onHand;
+
+    // Get camera stream
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: 640, height: 480, facingMode: 'user' },
+    });
+    this.video.srcObject = stream;
+    await this.video.play();
+
+    // Initialize MediaPipe Hands
+    this.hands = new Hands({
+      locateFile: (file) => `./mediapipe/hands/${file}`,
+    });
+
+    this.hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.7,
+      minTrackingConfidence: 0.5,
+    });
+
+    this.hands.onResults((results) => {
+      if (results.multiHandLandmarks?.length > 0) {
+        const landmarks = results.multiHandLandmarks[0];
+        this.callback?.(this.extractHandState(landmarks));
+      } else {
+        this.callback?.(null);
+      }
+    });
+
+    // Initialize camera feed
+    this.camera = new Camera(this.video, {
+      onFrame: async () => {
+        if (this.hands && this.isRunning) {
+          await this.hands.send({ image: this.video });
+        }
+      },
+      width: 640,
+      height: 480,
+    });
+  }
+
+  private extractHandState(landmarks: { x: number; y: number; z: number }[]): HandState {
+    const wrist = landmarks[0];
+    const thumbTip = landmarks[4];
+    const indexTip = landmarks[8];
+
+    // Palm center
+    const palmX = (wrist.x + indexTip.x) / 2;
+    const palmY = (wrist.y + indexTip.y) / 2;
+
+    // Pinch detection
+    const pinchDist = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
+    const isPinching = pinchDist < 0.08;
+
+    // Raised hand detection
+    const isRaised = wrist.y < 0.4;
+
+    return { position: { x: palmX, y: palmY }, isPinching, isRaised };
+  }
+
+  start(): void {
+    if (this.camera && !this.isRunning) {
+      this.isRunning = true;
+      this.camera.start();
+    }
+  }
+
+  stop(): void {
+    this.isRunning = false;
+  }
+}
+```
+
+### 4. Add Video Element to HTML
+
+```html
+<!-- Hidden video for camera feed -->
+<video id="camera-feed" autoplay playsinline style="display: none;"></video>
+```
+
+### 5. Integrate in Your Client
+
+```typescript
+import { HandTracker, type HandState } from './input/HandTracker.js';
+
+const video = document.getElementById('camera-feed') as HTMLVideoElement;
+const tracker = new HandTracker(video);
+
+await tracker.initialize((hand: HandState | null) => {
+  if (hand) {
+    // Send position to server
+    send({
+      type: 'hand_update',
+      handState: hand,
+    });
+  }
+});
+
+tracker.start();
+```
+
+### Key Concepts
+
+| Gesture | Detection |
+|---------|-----------|
+| **Pinch** | Thumb tip and index tip distance < 0.08 |
+| **Raised hand** | Wrist Y position < 0.4 (top of frame) |
+| **Position** | Normalized 0-1 coordinates from camera |
+
+### Privacy Note
+
+The camera feed stays local - only extracted hand positions (x, y coordinates) are sent to the server. Add a privacy notice in your UI:
+
+```html
+<p class="privacy-note">Your video stays on your device - only hand positions are shared.</p>
+```
+
+---
+
 ## Example Apps
 
-- **hello-hands** - Minimal demo (hand position sharing + wave)
-- **blocks-cannons** - Full game (3D rendering, game state, bot AI)
+| App | Description | Key Features |
+|-----|-------------|--------------|
+| **hello-hands** | Wave hello demo | Camera hand tracking, position sharing, wave gesture |
+| **blocks-cannons** | Competitive game | 3D rendering, game state, bot AI, pinch-to-grab |
 
-Refer to `packages/applications/hello-hands/` for a clean, minimal reference implementation.
+Refer to `packages/applications/hello-hands/` for a complete hand-tracking reference implementation.
 

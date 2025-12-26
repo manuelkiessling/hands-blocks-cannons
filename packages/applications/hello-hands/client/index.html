@@ -8,16 +8,29 @@
 </head>
 <body>
   <div id="app">
+    <!-- Hidden video element for camera feed -->
+    <video id="camera-feed" autoplay playsinline></video>
+
     <!-- Connection overlay -->
     <div id="connection-overlay" class="overlay">
       <div class="overlay-content">
         <h1>Hello Hands 👋</h1>
-        <p>Wave hello to your friend!</p>
+        <p>Wave hello to your friend using your hands!</p>
         <div id="connection-status">Connecting...</div>
         <div id="manual-connect" style="display: none;">
           <input type="text" id="ws-url" placeholder="ws://localhost:8080" value="ws://localhost:8080">
           <button id="connect-btn">Connect</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Camera permission overlay -->
+    <div id="camera-overlay" class="overlay" style="display: none;">
+      <div class="overlay-content">
+        <h2>📷 Camera Access Needed</h2>
+        <p>This app uses your camera to track your hand.</p>
+        <button id="camera-btn" class="ready-button">Enable Camera</button>
+        <p class="camera-hint">Your video stays on your device - only hand positions are shared.</p>
       </div>
     </div>
 
@@ -35,9 +48,9 @@
     <div id="ready-overlay" class="overlay" style="display: none;">
       <div class="overlay-content">
         <h2>Friend joined!</h2>
-        <p>Raise your hand to start</p>
+        <p>✋ Raise your hand above your head to start!</p>
         <div class="hand-icon pulse">✋</div>
-        <button id="ready-btn" class="ready-button">I'm Ready!</button>
+        <p id="ready-status">Waiting for both players to raise hands...</p>
       </div>
     </div>
 
@@ -50,11 +63,22 @@
     <!-- Main canvas -->
     <canvas id="canvas"></canvas>
 
+    <!-- Camera preview (small, in corner) -->
+    <div id="camera-preview">
+      <canvas id="camera-canvas"></canvas>
+    </div>
+
     <!-- Controls -->
     <div id="controls" style="display: none;">
       <button id="wave-btn" class="wave-button">👋 Wave</button>
       <div id="my-color" class="color-indicator"></div>
       <div id="friend-color" class="color-indicator"></div>
+    </div>
+
+    <!-- Hand tracking status -->
+    <div id="tracking-status" style="display: none;">
+      <span id="tracking-indicator">●</span>
+      <span id="tracking-text">Hand detected</span>
     </div>
 
     <!-- Lobby link -->
