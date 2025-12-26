@@ -207,7 +207,8 @@ class BlocksCannonsHooks
   }
 
   onSessionStart(): void {
-    // No-op; runtime handles session_started broadcast
+    // Transition game state to playing phase
+    this.gameState = this.gameState.setGamePhase('playing');
   }
 
   onReset(): BlocksResetData {
