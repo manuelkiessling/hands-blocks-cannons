@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blocks & Cannons - Hand-Controlled Multiplayer</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div id="server-config">
+        <h2>Connect to Game Server</h2>
+        <input type="text" id="server-url" placeholder="ws://localhost:3001" value="ws://localhost:3001">
+        <button id="connect-btn">Connect</button>
+    </div>
+
+    <div id="fallback" class="hidden">
+        <h1>Camera Access Required</h1>
+        <p>Allow camera access to control blocks with your hands. Pinch (thumb + index finger) to grab and move blocks. Cannons fire automatically!</p>
+    </div>
+
+    <div id="hand-raise-overlay" class="hidden">
+        <div class="overlay-content">
+            <div class="overlay-camera">
+                <video id="overlay-webcam" autoplay playsinline></video>
+                <div class="camera-border"></div>
+            </div>
+            <div class="hand-icon">✋</div>
+            <h1>Raise Your Hand to Start</h1>
+            <p class="subtitle">Show your hand to the camera to begin the game</p>
+            <div class="divider"></div>
+            <div class="instructions">
+                <h2>How to Play</h2>
+                <ul>
+                    <li><span class="icon">👌</span> <strong>Pinch</strong> (thumb + index finger) to grab your blocks</li>
+                    <li><span class="icon">🎯</span> <strong>Move</strong> your blocks to dodge incoming projectiles</li>
+                    <li><span class="icon">💥</span> <strong>Cannons</strong> fire automatically at your opponent</li>
+                    <li><span class="icon">🏆</span> <strong>Win</strong> by destroying your opponent's blocks</li>
+                </ul>
+            </div>
+            <p class="waiting-text">Waiting for your hand...</p>
+        </div>
+    </div>
+
+    <div id="game-over-overlay" class="hidden">
+        <div class="game-over-content">
+            <div class="trophy-icon" id="game-over-icon">🏆</div>
+            <h1 id="game-over-title">Victory!</h1>
+            <p class="game-over-subtitle" id="game-over-subtitle">You destroyed all opponent blocks</p>
+            <div class="divider"></div>
+            <button id="play-again-btn" class="play-again-button">
+                <span class="btn-icon">🔄</span>
+                Play Again
+            </button>
+            <p class="voting-status" id="voting-status"></p>
+            <a id="return-to-lobby" class="return-to-lobby hidden" href="#">
+                <span class="btn-icon">🏠</span>
+                Return to Lobby
+            </a>
+        </div>
+    </div>
+    
+    <div id="container"></div>
+    
+    <div id="webcam-container">
+        <video id="webcam" autoplay playsinline></video>
+        <div id="webcam-bounds"></div>
+    </div>
+    
+    <div id="status">Connecting...</div>
+    <div id="connection-status">Server: disconnected</div>
+    <div id="player-info"></div>
+
+    <script type="module" src="/main.ts"></script>
+</body>
+</html>
+
