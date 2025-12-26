@@ -13,14 +13,15 @@
     "build": "npm run build --workspaces",
     "build:framework-protocol": "npm run build -w @gesture-app/framework-protocol",
     "build:blocks-cannons": "npm run build -w @gesture-app/blocks-cannons",
-    "build:framework": "npm run build:framework-protocol && npm run build -w @gesture-app/framework-server && npm run build -w @gesture-app/framework-client",
-    "build:deps": "npm run build:framework-protocol && npm run build:blocks-cannons",
+    "build:framework": "npm run build:framework-protocol && npm run build -w @gesture-app/framework-build && npm run build -w @gesture-app/framework-input && npm run build -w @gesture-app/framework-server && npm run build -w @gesture-app/framework-client && npm run build -w @gesture-app/framework-testing",
+    "build:deps": "npm run build:framework && npm run build:blocks-cannons",
     "build:clients": "npm run build:client -w @gesture-app/blocks-cannons && npm run build:client -w @gesture-app/hello-hands",
+    "clean": "find . -name dist -type d ! -path '*/node_modules/*' -exec rm -rf {} + 2>/dev/null || true",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "check": "npm run check --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "test:clients": "npm run test:client --workspaces --if-present",
-    "validate": "npm run build:deps && npm run build:clients && npm run check && npm run typecheck && npm run test && npm run test:clients"
+    "validate": "npm run clean && npm run build:deps && npm run build:clients && npm run check && npm run typecheck && npm run test && npm run test:clients"
   },
   "engines": {
     "node": ">=24.0.0"

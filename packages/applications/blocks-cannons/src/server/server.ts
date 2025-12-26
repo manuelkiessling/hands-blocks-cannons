@@ -362,11 +362,11 @@ createAppServer<
   {
     runtimeConfig: RUNTIME_CONFIG,
     hooks,
-    parser: (data) => parseClientMessage(JSON.parse(data) as unknown),
+    parser: (data: string) => parseClientMessage(JSON.parse(data) as unknown),
     logger: {
-      info: (msg, data) => logger.info(msg, data as Record<string, unknown>),
-      error: (msg, data) => logger.error(msg, data as Record<string, unknown>),
-      debug: (msg, data) => logger.debug(msg, data as Record<string, unknown>),
+      info: (msg: string, data?: object) => logger.info(msg, data as Record<string, unknown>),
+      error: (msg: string, data?: object) => logger.error(msg, data as Record<string, unknown>),
+      debug: (msg: string, data?: object) => logger.debug(msg, data as Record<string, unknown>),
     },
     // Use app-specific inactivity settings from game.yaml
     inactivity: {
