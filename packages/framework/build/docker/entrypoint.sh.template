@@ -1,0 +1,50 @@
+#!/bin/sh
+# Shared entrypoint script for gesture app session containers
+#
+# This script:
+# 1. Generates session.json with connection configuration
+# 2. Starts nginx in the background
+# 3. Starts the Node.js WebSocket server
+#
+# Required environment variables:
+# - SESSION_ID: Unique session identifier
+# - APP_ID: Application identifier (e.g., "blocks-cannons", "hello-hands")
+#
+# Optional environment variables:
+# - PORT: WebSocket server port (default: 3001)
+# - LOBBY_URL: URL to return to lobby (default: https://gestures-apps.dx-tooling.org)
+
+set -e
+
+echo "=== {{APP_DISPLAY_NAME}} Session Container ==="
+echo "SESSION_ID: ${SESSION_ID:-not set}"
+echo "APP_ID: ${APP_ID:-{{APP_NAME}}}"
+echo "PORT: ${PORT:-3001}"
+
+# Construct WebSocket URL from session ID and app ID
+LOBBY_URL="${LOBBY_URL:-https://gestures-apps.dx-tooling.org}"
+WS_URL="wss://${SESSION_ID}-${APP_ID}-gestures.dx-tooling.org/ws"
+
+# Generate session.json for client
+cat > /usr/share/nginx/html/session.json << EOF
+{
+  "appId": "${APP_ID}",
+  "sessionId": "${SESSION_ID}",
+  "wsUrl": "${WS_URL}",
+  "lobbyUrl": "${LOBBY_URL}"
+}
+EOF
+
+echo "Generated session.json:"
+cat /usr/share/nginx/html/session.json
+echo ""
+
+# Start nginx in daemon mode
+echo "Starting nginx..."
+nginx
+
+# Start the WebSocket server
+echo "Starting WebSocket server on port ${PORT:-3001}..."
+cd /app/packages/applications/{{APP_NAME}}
+exec node dist/server/index.js
+

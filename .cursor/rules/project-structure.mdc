@@ -32,8 +32,10 @@ cam-gesture-experiment/
 ├── packages/
 │   ├── framework/
 │   │   ├── protocol  # @gesture-app/framework-protocol (schemas/types)
-│   │   ├── server    # @gesture-app/framework-server (SessionRuntime)
-│   │   └── client    # @gesture-app/framework-client (SessionClient + config)
+│   │   ├── server    # @gesture-app/framework-server (SessionRuntime, createAppServer)
+│   │   ├── client    # @gesture-app/framework-client (SessionClient + config)
+│   │   ├── input     # @gesture-app/framework-input (HandTracker, gestures)
+│   │   └── build     # @gesture-app/framework-build (Vite config, build utils)
 │   ├── applications/
 │   │   ├── blocks-cannons  # Game app (server/client/bot)
 │   │   └── hello-hands     # Demo app
@@ -48,6 +50,8 @@ graph TD
     Protocol["@gesture-app/framework-protocol"]
     Server["@gesture-app/framework-server"]
     Client["@gesture-app/framework-client"]
+    Input["@gesture-app/framework-input"]
+    Build["@gesture-app/framework-build"]
     App1["@gesture-app/blocks-cannons"]
     App2["@gesture-app/hello-hands"]
     Lobby["@gesture-app/lobby"]
@@ -55,7 +59,9 @@ graph TD
     Server --> Protocol
     Client --> Protocol
     App1 --> Protocol
+    App1 --> Input
     App2 --> Protocol
+    App2 --> Input
     Lobby --> Protocol
 ```
 
@@ -95,8 +101,10 @@ npm install -D <package> -w @gesture-app/framework-protocol
 Import across packages using workspace package names (no relative paths):
 ```typescript
 import { createSessionServerMessageSchema } from '@gesture-app/framework-protocol';
-import { SessionRuntime } from '@gesture-app/framework-server';
+import { SessionRuntime, createAppServer } from '@gesture-app/framework-server';
 import { SessionClient } from '@gesture-app/framework-client';
+import { HandTracker, isPinching, isHandRaised } from '@gesture-app/framework-input';
+import { createGestureAppViteConfig } from '@gesture-app/framework-build';
 import { BlocksWelcomeData } from '@gesture-app/blocks-cannons';
 ```
 
@@ -105,7 +113,9 @@ import { BlocksWelcomeData } from '@gesture-app/blocks-cannons';
 When building the full project:
 
 1. `@gesture-app/framework-protocol` must build first
-2. `@gesture-app/framework-server`, `@gesture-app/framework-client`, and applications can build afterward
+2. `@gesture-app/framework-server`, `@gesture-app/framework-client`, `@gesture-app/framework-input` can build afterward
+3. `@gesture-app/framework-build`, `@gesture-app/framework-testing` (depend on protocol)
+4. Applications can build last (depend on framework packages)
 
 The root `validate` script handles this automatically.
 

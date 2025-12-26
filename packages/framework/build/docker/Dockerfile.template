@@ -1,0 +1,91 @@
+# Gesture App Session Container Template
+#
+# This is a template Dockerfile for gesture apps. Replace {{APP_NAME}} with your app name.
+#
+# Build from repo root:
+#   docker build -f packages/applications/{{APP_NAME}}/docker/Dockerfile -t {{APP_NAME}}-session .
+
+FROM node:24-bookworm-slim AS base
+
+# Install nginx
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    nginx \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build stage
+FROM base AS builder
+
+WORKDIR /build
+
+# Copy package files
+COPY package.json package-lock.json ./
+COPY packages/framework/protocol/package.json ./packages/framework/protocol/
+COPY packages/framework/server/package.json ./packages/framework/server/
+COPY packages/framework/client/package.json ./packages/framework/client/
+COPY packages/applications/{{APP_NAME}}/package.json ./packages/applications/{{APP_NAME}}/
+
+# Install all dependencies (including dev)
+RUN npm ci
+
+# Copy source code
+COPY packages/framework/protocol/ ./packages/framework/protocol/
+COPY packages/framework/server/ ./packages/framework/server/
+COPY packages/framework/client/ ./packages/framework/client/
+COPY packages/applications/{{APP_NAME}}/ ./packages/applications/{{APP_NAME}}/
+
+# Build framework packages first
+RUN npm run build -w @gesture-app/framework-protocol
+RUN npm run build -w @gesture-app/framework-server
+RUN npm run build -w @gesture-app/framework-client
+
+# Build app (server + shared)
+RUN npm run build -w @gesture-app/{{APP_NAME}}
+
+# Build client
+RUN npm run build:client -w @gesture-app/{{APP_NAME}}
+
+# Production stage
+FROM base AS production
+
+WORKDIR /app
+
+# Copy package files for production install
+COPY package.json package-lock.json ./
+COPY packages/framework/protocol/package.json ./packages/framework/protocol/
+COPY packages/framework/server/package.json ./packages/framework/server/
+COPY packages/framework/client/package.json ./packages/framework/client/
+COPY packages/applications/{{APP_NAME}}/package.json ./packages/applications/{{APP_NAME}}/
+
+# Install production dependencies only
+RUN npm ci --omit=dev \
+    --workspace=@gesture-app/framework-protocol \
+    --workspace=@gesture-app/framework-server \
+    --workspace=@gesture-app/framework-client \
+    --workspace=@gesture-app/{{APP_NAME}}
+
+# Copy built artifacts
+COPY --from=builder /build/packages/framework/protocol/dist ./packages/framework/protocol/dist
+COPY --from=builder /build/packages/framework/server/dist ./packages/framework/server/dist
+COPY --from=builder /build/packages/framework/client/dist ./packages/framework/client/dist
+COPY --from=builder /build/packages/applications/{{APP_NAME}}/dist ./packages/applications/{{APP_NAME}}/dist
+
+# Copy client build to nginx html directory
+COPY --from=builder /build/packages/applications/{{APP_NAME}}/dist/client /usr/share/nginx/html
+
+# Copy nginx config and entrypoint
+COPY packages/applications/{{APP_NAME}}/docker/nginx.conf /etc/nginx/nginx.conf
+COPY packages/applications/{{APP_NAME}}/docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Environment variables
+ENV PORT=3001
+ENV SESSION_ID=""
+ENV APP_ID="{{APP_NAME}}"
+ENV LOBBY_URL="https://gestures-apps.dx-tooling.org"
+
+# Expose port 80 (nginx)
+EXPOSE 80
+
+# Start services
+CMD ["/entrypoint.sh"]
+

@@ -1,0 +1,213 @@
+---
+description: Hand tracking patterns using framework-input
+globs: ["**/input/**/*.ts", "**/HandTracker*.ts", "**/Gesture*.ts"]
+---
+
+# Hand Tracking Patterns
+
+## Framework Input Package
+
+The `@gesture-app/framework-input` package provides:
+
+- `HandTracker` - MediaPipe hand tracking wrapper
+- `LANDMARKS` - Hand landmark indices (21 points)
+- `HAND_CONNECTIONS` - Connections for skeleton drawing
+- Gesture utilities: `isPinching()`, `isHandRaised()`, `getPalmCenter()`, `getPinchPoint()`
+
+## Using HandTracker
+
+```typescript
+import {
+  HandTracker,
+  isPinching,
+  isHandRaised,
+  extractLandmarks2D,
+  LANDMARKS,
+  HAND_CONNECTIONS,
+} from '@gesture-app/framework-input';
+
+const video = document.getElementById('camera') as HTMLVideoElement;
+const tracker = new HandTracker(video, {
+  maxHands: 1,        // or 2 for multi-hand
+  modelComplexity: 1, // 0=lite, 1=full
+  minDetectionConfidence: 0.7,
+  minTrackingConfidence: 0.5,
+});
+
+await tracker.initialize((hands) => {
+  if (hands.length === 0) {
+    console.log('No hands detected');
+    return;
+  }
+  
+  for (const hand of hands) {
+    console.log(`${hand.handedness} hand detected`);
+    console.log(`Score: ${hand.score}`);
+    
+    // Use gesture utilities
+    if (isPinching(hand.landmarks)) {
+      console.log('Pinching!');
+    }
+    
+    if (isHandRaised(hand.landmarks)) {
+      console.log('Hand raised!');
+    }
+  }
+});
+
+tracker.start();
+```
+
+## Hand Landmarks (21 Points)
+
+```typescript
+import { LANDMARKS } from '@gesture-app/framework-input';
+
+// Key landmarks:
+LANDMARKS.WRIST       // 0 - Wrist base
+LANDMARKS.THUMB_TIP   // 4 - Thumb tip
+LANDMARKS.INDEX_TIP   // 8 - Index finger tip
+LANDMARKS.MIDDLE_TIP  // 12 - Middle finger tip
+LANDMARKS.RING_TIP    // 16 - Ring finger tip
+LANDMARKS.PINKY_TIP   // 20 - Pinky tip
+
+// Access landmark position (normalized 0-1):
+const indexTip = hand.landmarks[LANDMARKS.INDEX_TIP];
+console.log(`Index tip at (${indexTip.x}, ${indexTip.y})`);
+```
+
+## Gesture Detection
+
+```typescript
+import { isPinching, isHandRaised, getPalmCenter, getPinchPoint } from '@gesture-app/framework-input';
+
+// Pinch: thumb and index tips close together (< 0.08 normalized distance)
+if (isPinching(hand.landmarks)) {
+  const pinchPoint = getPinchPoint(hand.landmarks);
+  console.log(`Pinching at (${pinchPoint.x}, ${pinchPoint.y})`);
+}
+
+// Raised hand: wrist above Y threshold (< 0.4, 0=top of frame)
+if (isHandRaised(hand.landmarks)) {
+  console.log('Hand is raised');
+}
+
+// Palm center: average of wrist, index tip, middle tip
+const palm = getPalmCenter(hand.landmarks);
+```
+
+## Drawing Hand Skeleton (2D Canvas)
+
+```typescript
+import { HAND_CONNECTIONS, LANDMARKS } from '@gesture-app/framework-input';
+
+function drawHandSkeleton(ctx: CanvasRenderingContext2D, landmarks: Point2D[], color: string) {
+  const w = ctx.canvas.width;
+  const h = ctx.canvas.height;
+  
+  // Draw bones (connections)
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  
+  for (const [a, b] of HAND_CONNECTIONS) {
+    const pa = landmarks[a];
+    const pb = landmarks[b];
+    if (pa && pb) {
+      ctx.beginPath();
+      ctx.moveTo(pa.x * w, pa.y * h);
+      ctx.lineTo(pb.x * w, pb.y * h);
+      ctx.stroke();
+    }
+  }
+  
+  // Draw joints
+  for (let i = 0; i < landmarks.length; i++) {
+    const lm = landmarks[i];
+    const isTip = [4, 8, 12, 16, 20].includes(i);
+    
+    ctx.beginPath();
+    ctx.arc(lm.x * w, lm.y * h, isTip ? 4 : 2, 0, Math.PI * 2);
+    ctx.fillStyle = isTip ? '#fff' : color;
+    ctx.fill();
+  }
+}
+```
+
+## Mirroring for Webcam View
+
+Webcams typically show a mirrored view. Handle this in CSS or drawing:
+
+```css
+/* CSS mirror (recommended) */
+#camera-canvas {
+  transform: scaleX(-1);
+}
+```
+
+Or in code:
+```typescript
+// Draw mirrored: use (1 - x) instead of x
+const drawX = (1 - landmark.x) * canvasWidth;
+```
+
+## Coordinate Mapping to 3D
+
+For 3D apps, map 2D landmarks to world coordinates:
+
+```typescript
+function landmarkTo3D(lm: Point2D, room: RoomBounds, playerNumber: 1 | 2): Vector3 {
+  // Normalize camera coordinates to 0-1 (accounting for margins)
+  const normX = clamp((lm.x - MARGIN) / (1 - 2 * MARGIN), 0, 1);
+  const normY = clamp((lm.y - MARGIN) / (1 - 2 * MARGIN), 0, 1);
+  
+  // Mirror X for player 1 (looking from +Z)
+  const mappedX = playerNumber === 1 ? 1 - normX : normX;
+  
+  // Map to room bounds
+  const x = room.minX + mappedX * (room.maxX - room.minX);
+  const y = room.maxY - normY * (room.maxY - room.minY);  // Y is inverted
+  const z = playerNumber === 1 ? room.maxZ : room.minZ;   // Depth by player side
+  
+  return new Vector3(x, y, z);
+}
+```
+
+## Multi-Hand Tracking
+
+For apps that need both hands:
+
+```typescript
+const tracker = new HandTracker(video, { maxHands: 2 });
+
+tracker.initialize((hands) => {
+  const leftHand = hands.find(h => h.handedness === 'Left');
+  const rightHand = hands.find(h => h.handedness === 'Right');
+  
+  if (leftHand) {
+    // Process left hand
+  }
+  
+  if (rightHand) {
+    // Process right hand
+  }
+});
+```
+
+## Stopping and Restarting
+
+```typescript
+// Pause tracking (keeps camera running)
+tracker.stop();
+
+// Resume tracking
+tracker.start();
+
+// Check if running
+if (tracker.running) {
+  console.log('Tracker is active');
+}
+```
+
+## MediaPipe Assets
+
+The Vite config copies MediaPipe assets to `mediapipe/hands/` in the build output. Ensure this path matches `DEFAULT_MEDIAPIPE_CONFIG.HANDS_PATH`.

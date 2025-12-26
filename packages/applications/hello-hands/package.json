@@ -41,6 +41,8 @@
     "zod": "^4.0.0"
   },
   "devDependencies": {
+    "@gesture-app/framework-build": "^1.0.0",
+    "@gesture-app/framework-testing": "^1.0.0",
     "@biomejs/biome": "^2.0.0",
     "@types/node": "^24.0.0",
     "@types/ws": "^8.5.0",

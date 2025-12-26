@@ -1,0 +1,155 @@
+---
+description: How to create a new gesture app using the framework
+globs: ["packages/applications/**/*.ts", "packages/applications/**/*.tsx"]
+---
+
+# App Development Patterns
+
+## Creating a New Application
+
+New apps live in `packages/applications/<app-name>/` and follow this structure:
+
+```
+packages/applications/my-app/
+├── package.json
+├── tsconfig.json
+├── biome.json
+├── vitest.config.ts
+├── src/
+│   ├── index.ts          # App manifest + registration (auto-registers on import)
+│   ├── shared/
+│   │   ├── index.ts      # Shared exports
+│   │   ├── types.ts      # Shared types (ParticipantId, Position, etc.)
+│   │   └── protocol.ts   # Message types + Zod schemas
+│   └── server/
+│       ├── index.ts      # Server exports
+│       ├── MyAppSession.ts    # AppHooks implementation
+│       └── server.ts     # Standalone WebSocket server
+├── client/
+│   ├── index.html
+│   ├── main.ts
+│   ├── styles.css
+│   └── vite.config.ts
+├── tests/
+│   ├── app.test.ts       # Registration tests
+│   └── shared.test.ts    # Protocol/type tests
+└── docker/
+    ├── Dockerfile
+    ├── entrypoint.sh
+    └── nginx.conf
+```
+
+## App Manifest & Registration
+
+Every app must self-register with the global registry. This happens automatically when the app module is imported:
+
+```typescript
+// src/index.ts
+import { type AppManifest, globalRegistry, validateManifest } from '@gesture-app/framework-protocol';
+
+export const APP_ID = 'my-app';
+export const APP_NAME = 'My App';
+export const APP_VERSION = '1.0.0';
+
+export const APP_MANIFEST: AppManifest = {
+  id: APP_ID,
+  name: APP_NAME,
+  version: APP_VERSION,
+  description: 'A two-participant demo app',
+  tags: ['demo'],
+};
+
+export function registerApp(): void {
+  if (!globalRegistry.has(APP_ID)) {
+    validateManifest(APP_MANIFEST);
+    globalRegistry.register(APP_MANIFEST);
+  }
+}
+
+// Auto-register on import
+registerApp();
+
+// Re-export shared types
+export * from './shared/index.js';
+```
+
+## Message Protocol Pattern
+
+Define client and server messages with Zod schemas for validation:
+
+```typescript
+// src/shared/protocol.ts
+import { z } from 'zod';
+
+// Client → Server messages
+export interface HandUpdateMessage {
+  type: 'hand_update';
+  handState: HandState;
+}
+
+export const HandUpdateMessageSchema = z.object({
+  type: z.literal('hand_update'),
+  handState: HandStateSchema,
+});
+
+export type ClientMessage = HandUpdateMessage | OtherMessage;
+export const ClientMessageSchema = z.discriminatedUnion('type', [
+  HandUpdateMessageSchema,
+  // ... other schemas
+]);
+
+// Server → Client messages
+export interface HandBroadcastMessage {
+  type: 'hand_broadcast';
+  participantId: ParticipantId;
+  handState: HandState;
+}
+
+export type ServerMessage = HandBroadcastMessage | OtherMessage;
+```
+
+## AppHooks Implementation
+
+The server implements `AppHooks` to handle app-specific logic:
+
+```typescript
+// src/server/MyAppSession.ts
+import type { AppHooks, MessageResponse, Participant } from '@gesture-app/framework-server';
+
+export class MyAppHooks implements AppHooks<ClientMessage, ServerMessage, WelcomeData, ResetData> {
+  generateParticipantId(participantNumber: 1 | 2): string {
+    return `player-${participantNumber}`;
+  }
+
+  onParticipantJoin(participant: Participant): WelcomeData {
+    // Return data included in welcome message
+    return { color: getColor(participant.number) };
+  }
+
+  onMessage(message: ClientMessage, senderId: string, phase: SessionPhase): MessageResponse<ServerMessage>[] {
+    // Handle app messages, return responses to route
+    switch (message.type) {
+      case 'hand_update':
+        return [{ target: 'opponent', message: { type: 'hand_broadcast', ... } }];
+    }
+    return [];
+  }
+
+  onSessionStart(): void {
+    // Called when both participants are ready
+  }
+
+  onReset(): ResetData {
+    // Called when both vote to play again
+    return { message: 'New round!' };
+  }
+}
+```
+
+## Key Principles
+
+1. **Self-registration**: Apps register themselves; no framework edits needed
+2. **Type safety**: Use Zod schemas for message validation
+3. **Framework handles lifecycle**: Focus on app logic, not connection management
+4. **Message routing**: Return `{ target: 'sender' | 'opponent' | 'all', message }` from `onMessage`
+5. **Separation**: Shared types in `shared/`, server logic in `server/`, client in `client/`

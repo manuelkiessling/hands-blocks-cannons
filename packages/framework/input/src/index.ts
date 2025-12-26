@@ -24,6 +24,20 @@ export {
 } from './gestures.js';
 // Hand tracker
 export { HandTracker } from './HandTracker.js';
+// 2D Rendering utilities
+export {
+  type CameraPreviewOptions,
+  DEFAULT_PINCH_OPTIONS,
+  DEFAULT_SKELETON_OPTIONS,
+  drawCameraPreview,
+  drawHandPositionIndicator,
+  drawHandSkeleton2D,
+  drawLabeledHand,
+  drawPinchIndicator,
+  type HandSkeletonOptions,
+  type LabeledHandOptions,
+  type PinchIndicatorOptions,
+} from './rendering.js';
 // Types
 export type {
   HandCallback,

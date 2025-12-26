@@ -20,6 +20,12 @@ import type {
 // Re-export protocol types for convenience
 export type { ParticipantId, ParticipantNumber, SessionPhase, SessionEndedReason };
 
+// Export server factory
+export {
+  type AppServer,
+  type AppServerConfig,
+  createAppServer,
+} from './createAppServer.js';
 // Export session runtime
 export {
   type AppHooks,

@@ -1,0 +1,199 @@
+---
+description: Server-side patterns for gesture apps
+globs: ["packages/applications/**/server/**/*.ts", "packages/framework/server/**/*.ts"]
+---
+
+# Server-Side Patterns
+
+## SessionRuntime Setup
+
+The framework's `SessionRuntime` handles the WebSocket lifecycle. Apps provide hooks:
+
+```typescript
+import { SessionRuntime } from '@gesture-app/framework-server';
+import { WebSocketServer } from 'ws';
+
+const PORT = Number(process.env['PORT']) || 3001;
+
+const hooks = new MyAppHooks();
+const config = { maxParticipants: 2, tickEnabled: false, tickIntervalMs: 16 };
+
+const runtime = new SessionRuntime<ClientMsg, ServerMsg, WelcomeData, ResetData>(
+  config,
+  hooks,
+  (message) => JSON.stringify(message),  // Serializer
+  (data) => parseClientMessage(JSON.parse(data))  // Parser
+);
+
+const wss = new WebSocketServer({ port: PORT });
+
+wss.on('connection', (ws) => {
+  const participant = runtime.handleConnection(ws);
+  if (!participant) return;  // Session full
+
+  ws.on('message', (data) => runtime.handleMessage(ws, data.toString()));
+  ws.on('close', () => runtime.handleDisconnection(ws));
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  runtime.stop();
+  wss.close(() => process.exit(0));
+});
+```
+
+## AppHooks Interface
+
+Implement `AppHooks` for your app's server logic:
+
+```typescript
+interface AppHooks<TClientMsg, TServerMsg, TWelcomeData, TResetData> {
+  // Generate unique participant ID
+  generateParticipantId(participantNumber: 1 | 2): ParticipantId;
+
+  // Called when participant joins, return welcome data
+  onParticipantJoin(participant: Participant): TWelcomeData;
+
+  // Called when participant leaves
+  onParticipantLeave(participantId: ParticipantId): void;
+
+  // Handle app message, return responses to route
+  onMessage(
+    message: TClientMsg,
+    senderId: ParticipantId,
+    phase: SessionPhase
+  ): MessageResponse<TServerMsg>[];
+
+  // Called when session starts (both ready)
+  onSessionStart(): void;
+
+  // Called on reset, return reset data
+  onReset(): TResetData;
+
+  // Optional: tick-based updates
+  onTick?(deltaTime: number): TServerMsg[];
+
+  // Optional: check for app-specific end condition
+  checkSessionEnd?(): { winnerId: string; winnerNumber: 1 | 2 } | null;
+}
+```
+
+## Message Routing
+
+Return `MessageResponse` objects to route messages:
+
+```typescript
+onMessage(message: ClientMsg, senderId: string, phase: SessionPhase): MessageResponse<ServerMsg>[] {
+  switch (message.type) {
+    case 'hand_update':
+      // Broadcast to opponent only
+      return [{
+        target: 'opponent',
+        message: { type: 'hand_broadcast', participantId: senderId, handState: message.handState }
+      }];
+
+    case 'block_move':
+      // Broadcast to everyone (including sender for confirmation)
+      return [{
+        target: 'all',
+        message: { type: 'block_moved', blockId: message.blockId, position: message.position }
+      }];
+
+    case 'some_action':
+      // Reply to sender only
+      return [{
+        target: 'sender',
+        message: { type: 'action_result', success: true }
+      }];
+  }
+  return [];
+}
+```
+
+## Tick-Based Games
+
+For real-time games, enable the tick loop:
+
+```typescript
+const config = {
+  maxParticipants: 2,
+  tickEnabled: true,
+  tickIntervalMs: 16,  // ~60 FPS
+};
+
+class GameHooks implements AppHooks<...> {
+  onTick(deltaTime: number): ServerMsg[] {
+    // Update physics, projectiles, etc.
+    const result = this.gameState.update(deltaTime);
+    
+    const messages: ServerMsg[] = [];
+    
+    // Broadcast updated positions
+    if (result.projectiles.length > 0) {
+      messages.push({ type: 'projectiles_update', projectiles: result.projectiles });
+    }
+    
+    return messages;  // Broadcast to all
+  }
+
+  checkSessionEnd(): { winnerId: string; winnerNumber: 1 | 2 } | null {
+    // Check win condition each tick
+    if (this.gameState.isGameOver()) {
+      return {
+        winnerId: this.gameState.winnerId,
+        winnerNumber: this.gameState.winnerNumber,
+      };
+    }
+    return null;
+  }
+}
+```
+
+## State Management Pattern
+
+Use immutable state updates for predictability:
+
+```typescript
+class GameState {
+  private constructor(
+    readonly blocks: Map<string, Block>,
+    readonly projectiles: Map<string, Projectile>,
+    readonly gamePhase: 'waiting' | 'playing' | 'finished',
+  ) {}
+
+  static create(): GameState {
+    return new GameState(new Map(), new Map(), 'waiting');
+  }
+
+  // Return new state, don't mutate
+  addBlock(block: Block): GameState {
+    const newBlocks = new Map(this.blocks);
+    newBlocks.set(block.id, block);
+    return new GameState(newBlocks, this.projectiles, this.gamePhase);
+  }
+}
+```
+
+## Logging
+
+Use structured logging for debugging:
+
+```typescript
+const logger = {
+  info: (msg: string, data?: object) => console.log(`[${APP_ID}] ${msg}`, data ?? ''),
+  error: (msg: string, data?: object) => console.error(`[${APP_ID}] ${msg}`, data ?? ''),
+};
+
+logger.info('Session started', { participantCount: 2 });
+```
+
+## Environment Variables
+
+Read configuration from environment:
+
+```typescript
+// biome-ignore lint/complexity/useLiteralKeys: Required for noPropertyAccessFromIndexSignature
+const PORT = Number(process.env['PORT']) || 3001;
+const SESSION_ID = process.env['SESSION_ID'] || '';
+const WITH_BOT = process.env['WITH_BOT'] === 'true';
+```

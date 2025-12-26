@@ -6,6 +6,7 @@
  */
 
 import { resolveSessionConfig, SessionClient } from '@gesture-app/framework-client';
+import { drawCameraPreview as drawCameraPreviewFramework } from '@gesture-app/framework-input';
 import type { ParticipantId } from '@gesture-app/framework-protocol';
 import type {
   ClientMessage,
@@ -16,10 +17,14 @@ import type {
 } from '../src/shared/protocol.js';
 import { PARTICIPANT_COLORS } from '../src/shared/types.js';
 import {
+  extractLandmarks2D,
   HAND_CONNECTIONS,
   HandTracker,
+  isHandRaised,
+  isPinching,
   LANDMARKS,
-  type HandState as TrackerHandState,
+  type Point2D,
+  type TrackedHand,
 } from './input/HandTracker.js';
 
 // ============ DOM Elements ============
@@ -194,9 +199,9 @@ async function handleCameraPermission(): Promise<void> {
     cameraPreview.style.display = 'block';
     trackingStatus.style.display = 'flex';
 
-    // Now initialize and start hand tracking
-    state.handTracker = new HandTracker(cameraFeed);
-    await state.handTracker.initialize(handleHandUpdate);
+    // Now initialize and start hand tracking (single-hand mode)
+    state.handTracker = new HandTracker(cameraFeed, { maxHands: 1 });
+    await state.handTracker.initialize(handleHandsUpdate);
     state.handTracker.start();
   } catch (error) {
     console.error('Camera access failed:', error);
@@ -208,21 +213,39 @@ async function handleCameraPermission(): Promise<void> {
   }
 }
 
-function handleHandUpdate(hand: TrackerHandState | null): void {
+function handleHandsUpdate(hands: readonly TrackedHand[]): void {
+  // Get first hand if any detected
+  const hand = hands[0];
+
   // Update tracking indicator
   if (hand) {
     trackingIndicator.className = 'detected';
     trackingText.textContent = 'Hand detected';
 
+    // Extract hand state using framework utilities
+    const landmarks2D = extractLandmarks2D(hand.landmarks);
+    const wrist = hand.landmarks[LANDMARKS.WRIST];
+    const indexTip = hand.landmarks[LANDMARKS.INDEX_TIP];
+    const middleTip = hand.landmarks[LANDMARKS.MIDDLE_TIP];
+
+    // Calculate palm center
+    const position: Point2D =
+      wrist && indexTip && middleTip
+        ? {
+            x: (wrist.x + indexTip.x + middleTip.x) / 3,
+            y: (wrist.y + indexTip.y + middleTip.y) / 3,
+          }
+        : { x: 0.5, y: 0.5 };
+
     state.myHandState = {
-      position: hand.position,
-      isPinching: hand.isPinching,
-      isRaised: hand.isRaised,
-      landmarks: hand.landmarks, // Keep landmarks for local visualization
+      position,
+      isPinching: isPinching(hand.landmarks),
+      isRaised: isHandRaised(hand.landmarks),
+      landmarks: landmarks2D,
     };
 
     // Check for raised hand (auto-ready)
-    if (hand.isRaised && !state.isHandRaised && state.phase === 'ready') {
+    if (state.myHandState.isRaised && !state.isHandRaised && state.phase === 'ready') {
       state.isHandRaised = true;
       sendReady();
     }
@@ -236,9 +259,6 @@ function handleHandUpdate(hand: TrackerHandState | null): void {
         handState: state.myHandState,
       });
     }
-
-    // Detect wave gesture (rapid up-down motion while raised)
-    // For simplicity, we'll use the wave button instead
   } else {
     trackingIndicator.className = 'lost';
     trackingText.textContent = 'No hand detected';
@@ -246,82 +266,22 @@ function handleHandUpdate(hand: TrackerHandState | null): void {
   }
 
   // Draw camera preview with hand overlay
-  drawCameraPreview(hand);
+  drawCameraPreviewLocal(hands[0] ?? null);
 }
 
-function drawCameraPreview(hand: TrackerHandState | null): void {
+function drawCameraPreviewLocal(hand: TrackedHand | null): void {
   if (!cameraCtx) return;
 
-  // Draw camera feed (CSS already mirrors the canvas, so no JS mirror needed)
-  cameraCtx.drawImage(cameraFeed, 0, 0, cameraCanvas.width, cameraCanvas.height);
+  // Extract 2D landmarks if hand detected
+  const landmarks2D = hand ? extractLandmarks2D(hand.landmarks) : null;
+  const handIsRaised = hand ? isHandRaised(hand.landmarks) : false;
+  const handIsPinching = hand ? isPinching(hand.landmarks) : false;
 
-  // Draw hand skeleton if detected
-  if (hand?.landmarks) {
-    const w = cameraCanvas.width;
-    const h = cameraCanvas.height;
-
-    // Get color based on state
-    const color = hand.isRaised ? '#4ecdc4' : '#ff6b6b';
-
-    // Draw connections (bones) - no mirror here, CSS handles it
-    cameraCtx.strokeStyle = color;
-    cameraCtx.lineWidth = 2;
-    cameraCtx.lineCap = 'round';
-
-    for (const [a, b] of HAND_CONNECTIONS) {
-      const pa = hand.landmarks[a];
-      const pb = hand.landmarks[b];
-      if (pa && pb) {
-        const x1 = pa.x * w;
-        const y1 = pa.y * h;
-        const x2 = pb.x * w;
-        const y2 = pb.y * h;
-
-        cameraCtx.beginPath();
-        cameraCtx.moveTo(x1, y1);
-        cameraCtx.lineTo(x2, y2);
-        cameraCtx.stroke();
-      }
-    }
-
-    // Draw joints
-    for (let i = 0; i < hand.landmarks.length; i++) {
-      const lm = hand.landmarks[i];
-      if (!lm) continue;
-
-      const x = lm.x * w;
-      const y = lm.y * h;
-
-      // Fingertips are larger
-      const isTip =
-        i === LANDMARKS.THUMB_TIP ||
-        i === LANDMARKS.INDEX_TIP ||
-        i === LANDMARKS.MIDDLE_TIP ||
-        i === LANDMARKS.RING_TIP ||
-        i === LANDMARKS.PINKY_TIP;
-      const radius = isTip ? 4 : 2;
-
-      cameraCtx.beginPath();
-      cameraCtx.arc(x, y, radius, 0, Math.PI * 2);
-      cameraCtx.fillStyle = isTip ? '#fff' : color;
-      cameraCtx.fill();
-    }
-
-    // Highlight pinch if active
-    if (hand.isPinching) {
-      const thumb = hand.landmarks[LANDMARKS.THUMB_TIP];
-      const index = hand.landmarks[LANDMARKS.INDEX_TIP];
-      if (thumb && index) {
-        const mx = ((thumb.x + index.x) / 2) * w;
-        const my = ((thumb.y + index.y) / 2) * h;
-        cameraCtx.beginPath();
-        cameraCtx.arc(mx, my, 8, 0, Math.PI * 2);
-        cameraCtx.strokeStyle = '#fff';
-        cameraCtx.lineWidth = 2;
-        cameraCtx.stroke();
-      }
-    }
-  }
+  // Use framework camera preview utility
+  drawCameraPreviewFramework(cameraCtx, cameraFeed, landmarks2D, {
+    color: handIsRaised ? '#4ecdc4' : '#ff6b6b',
+    isPinching: handIsPinching,
+  });
 }
 
 // ============ Message Handling ============

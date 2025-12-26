@@ -1,0 +1,222 @@
+---
+description: Testing conventions for gesture apps
+globs: ["**/tests/**/*.ts", "**/*.test.ts"]
+---
+
+# Testing Conventions
+
+## Test Framework
+
+All packages use **Vitest** for testing:
+
+```bash
+# Run tests for a specific package
+npm run test -w @gesture-app/blocks-cannons
+
+# Run all tests
+npm run test
+```
+
+## Test File Organization
+
+```
+packages/applications/my-app/
+├── tests/
+│   ├── app.test.ts           # App registration, manifest
+│   ├── shared.test.ts        # Protocol, types, schemas
+│   └── server/
+│       ├── MyAppSession.test.ts  # AppHooks unit tests
+│       └── GameState.test.ts     # State management tests
+├── client/
+│   └── tests/
+│       ├── GestureDetector.test.ts
+│       └── InteractionManager.test.ts
+```
+
+## App Registration Tests
+
+Every app should test its registration:
+
+```typescript
+// tests/app.test.ts
+import { globalRegistry } from '@gesture-app/framework-protocol';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { APP_ID, APP_MANIFEST, APP_NAME, APP_VERSION, registerApp } from '../src/index.js';
+
+describe('App Registration', () => {
+  beforeEach(() => {
+    globalRegistry.clear();
+  });
+
+  it('should have valid manifest', () => {
+    expect(APP_MANIFEST).toMatchObject({
+      id: APP_ID,
+      name: APP_NAME,
+      version: APP_VERSION,
+      description: expect.any(String),
+    });
+  });
+
+  it('should register with global registry', () => {
+    expect(globalRegistry.has(APP_ID)).toBe(false);
+    registerApp();
+    expect(globalRegistry.has(APP_ID)).toBe(true);
+  });
+
+  it('should be idempotent', () => {
+    registerApp();
+    registerApp();
+    registerApp();
+    expect(globalRegistry.listIds()).toHaveLength(1);
+  });
+});
+```
+
+## Protocol Schema Tests
+
+Test Zod schemas for message validation:
+
+```typescript
+// tests/shared.test.ts
+import { describe, expect, it } from 'vitest';
+import { ClientMessageSchema, parseClientMessage } from '../src/shared/protocol.js';
+
+describe('Protocol', () => {
+  describe('ClientMessageSchema', () => {
+    it('should validate hand_update message', () => {
+      const msg = { type: 'hand_update', handState: { position: { x: 0.5, y: 0.5 }, ... } };
+      const result = ClientMessageSchema.safeParse(msg);
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject invalid message type', () => {
+      const msg = { type: 'invalid_type' };
+      const result = ClientMessageSchema.safeParse(msg);
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('parseClientMessage', () => {
+    it('should return null for invalid JSON', () => {
+      expect(parseClientMessage('not json')).toBeNull();
+    });
+
+    it('should return null for missing type', () => {
+      expect(parseClientMessage('{}')).toBeNull();
+    });
+  });
+});
+```
+
+## AppHooks Unit Tests
+
+Test server hooks with mock participants:
+
+```typescript
+// tests/server/MyAppSession.test.ts
+import { describe, expect, it, beforeEach } from 'vitest';
+import { MyAppHooks } from '../../src/server/MyAppSession.js';
+
+describe('MyAppHooks', () => {
+  let hooks: MyAppHooks;
+
+  beforeEach(() => {
+    hooks = new MyAppHooks();
+  });
+
+  describe('generateParticipantId', () => {
+    it('should generate unique IDs', () => {
+      const id1 = hooks.generateParticipantId(1);
+      const id2 = hooks.generateParticipantId(2);
+      expect(id1).not.toBe(id2);
+    });
+  });
+
+  describe('onParticipantJoin', () => {
+    it('should return welcome data with color', () => {
+      const data = hooks.onParticipantJoin({ id: 'p1', number: 1, isReady: false, isBot: false, wantsPlayAgain: false });
+      expect(data.color).toBeDefined();
+    });
+  });
+
+  describe('onMessage', () => {
+    it('should broadcast hand_update to opponent', () => {
+      const msg = { type: 'hand_update', handState: { ... } };
+      const responses = hooks.onMessage(msg, 'p1', 'playing');
+      
+      expect(responses).toHaveLength(1);
+      expect(responses[0].target).toBe('opponent');
+      expect(responses[0].message.type).toBe('hand_broadcast');
+    });
+  });
+});
+```
+
+## Framework Tests
+
+Framework packages have their own tests:
+
+```typescript
+// packages/framework/protocol/tests/registry.test.ts
+describe('AppRegistry', () => {
+  it('should register and retrieve apps', () => { ... });
+  it('should throw on duplicate registration', () => { ... });
+  it('should validate manifest', () => { ... });
+});
+
+// packages/framework/server/tests/SessionRuntime.test.ts
+describe('SessionRuntime', () => {
+  it('should handle 2-participant admission', () => { ... });
+  it('should reject third participant', () => { ... });
+  it('should transition phases correctly', () => { ... });
+});
+```
+
+## Mocking Connections
+
+Mock WebSocket connections for runtime tests:
+
+```typescript
+function createMockConnection(): Connection & { sentMessages: string[] } {
+  const sent: string[] = [];
+  return {
+    send: (data: string) => sent.push(data),
+    close: () => {},
+    readyState: 1,
+    OPEN: 1,
+    sentMessages: sent,
+  };
+}
+
+it('should send welcome message on connection', () => {
+  const conn = createMockConnection();
+  runtime.handleConnection(conn);
+  
+  expect(conn.sentMessages).toHaveLength(1);
+  const msg = JSON.parse(conn.sentMessages[0]);
+  expect(msg.type).toBe('welcome');
+});
+```
+
+## What NOT to Unit Test
+
+Some things are better tested through integration or manual testing:
+
+- **MediaPipe hand tracking** - Requires browser environment, camera
+- **3D rendering** - Requires WebGL context
+- **Real WebSocket connections** - Use mocks instead
+- **Docker containers** - Test via CI/CD pipelines
+
+## Test Naming Conventions
+
+Use descriptive test names that read as sentences:
+
+```typescript
+// Good
+it('should broadcast hand_update to opponent when playing', () => { ... });
+it('should reject connection when session is full', () => { ... });
+
+// Bad
+it('test1', () => { ... });
+it('works', () => { ... });
+```

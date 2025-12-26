@@ -1,0 +1,175 @@
+---
+description: Client-side patterns for gesture apps
+globs: ["packages/applications/**/client/**/*.ts", "packages/framework/client/**/*.ts"]
+---
+
+# Client-Side Patterns
+
+## SessionClient Usage
+
+Use the framework's `SessionClient` for WebSocket management:
+
+```typescript
+import { resolveSessionConfig, SessionClient } from '@gesture-app/framework-client';
+import type { ClientMessage, ServerMessage, WelcomeData, ResetData } from '../src/shared/protocol.js';
+
+const client = new SessionClient<ClientMessage, ServerMessage, WelcomeData, undefined, ResetData>({
+  onConnectionStateChange: (state) => { /* 'connecting' | 'connected' | 'disconnected' | 'error' */ },
+  onSessionJoin: ({ participantId, participantNumber, sessionPhase, appData }) => {
+    // Handle welcome - set up player state, colors, etc.
+  },
+  onOpponentJoined: (appData) => {
+    // Opponent connected - may transition to ready phase
+  },
+  onOpponentLeft: () => {
+    // Handle opponent disconnect
+  },
+  onSessionStart: () => {
+    // Both players ready - game begins
+  },
+  onSessionEnd: (winnerId, winnerNumber, reason, appData) => {
+    // Game over - show results, play-again option
+  },
+  onSessionReset: (appData) => {
+    // New round starting
+  },
+  onAppMessage: (message) => {
+    // Handle app-specific messages (hand_broadcast, etc.)
+  },
+  onError: (message) => {
+    // Handle errors
+  },
+});
+```
+
+## Connection Flow
+
+```typescript
+async function init() {
+  // Try to auto-connect from session config
+  const configResult = await resolveSessionConfig();
+  
+  if (configResult.mode === 'session') {
+    // Production: connect to provided WebSocket URL
+    client.connect(configResult.config.wsUrl);
+  } else {
+    // Development: show manual connection UI
+    showManualConnectUI();
+  }
+}
+```
+
+## Phase Management
+
+Track session phase for UI state:
+
+```typescript
+type AppPhase = 'connecting' | 'camera' | 'waiting' | 'ready' | 'playing' | 'finished';
+
+let phase: AppPhase = 'connecting';
+
+// Phase transitions:
+// connecting → camera (after welcome, need camera permission)
+// camera → waiting (after camera granted, no opponent yet)
+// waiting → ready (opponent joined, waiting for both ready)
+// ready → playing (both ready, game started)
+// playing → finished (game ended)
+// finished → ready (reset for new round)
+```
+
+## Overlay Pattern
+
+Show/hide overlays based on phase:
+
+```typescript
+function showOverlay(type: 'connection' | 'camera' | 'waiting' | 'ready' | null): void {
+  connectionOverlay.style.display = type === 'connection' ? 'flex' : 'none';
+  cameraOverlay.style.display = type === 'camera' ? 'flex' : 'none';
+  waitingOverlay.style.display = type === 'waiting' ? 'flex' : 'none';
+  readyOverlay.style.display = type === 'ready' ? 'flex' : 'none';
+}
+```
+
+## Sending Messages
+
+Use `sendAppMessage` for app messages, `sendReady` for ready signal:
+
+```typescript
+// App-specific message
+client.sendAppMessage({ type: 'hand_update', handState });
+
+// Framework lifecycle message
+client.sendReady();
+
+// Play again vote (after game ends)
+client.sendPlayAgainVote();
+```
+
+## Hand Tracking Integration
+
+Integrate hand tracking with phase-aware logic:
+
+```typescript
+import { HandTracker } from '@gesture-app/framework-input';
+
+const tracker = new HandTracker(videoElement, { maxHands: 1 });
+
+await tracker.initialize((hands) => {
+  if (hands.length === 0) {
+    // No hand detected
+    return;
+  }
+  
+  const hand = hands[0];
+  
+  // Auto-ready on raised hand (only in ready phase)
+  if (hand && isHandRaised(hand.landmarks) && phase === 'ready' && !readySent) {
+    readySent = true;
+    client.sendReady();
+  }
+  
+  // Send hand updates (only when playing)
+  if (phase === 'playing') {
+    client.sendAppMessage({
+      type: 'hand_update',
+      handState: extractHandState(hand),
+    });
+  }
+});
+
+tracker.start();
+```
+
+## Important: Set Phase Before Starting Tracker
+
+To avoid race conditions, set the phase state before the hand tracker callback loop starts:
+
+```typescript
+// CORRECT: Set phase first
+phase = 'ready';
+showOverlay('ready');
+await tracker.initialize(onHand);
+tracker.start();
+
+// WRONG: Starting tracker before phase is set
+await tracker.initialize(onHand);  // Callback might fire immediately
+tracker.start();
+phase = 'ready';  // Too late!
+```
+
+## Throttling Updates
+
+Throttle frequent updates like hand positions:
+
+```typescript
+const THROTTLE_MS = 50;
+let lastUpdateTime = 0;
+
+function sendHandUpdate(handState: HandState) {
+  const now = Date.now();
+  if (now - lastUpdateTime < THROTTLE_MS) return;
+  lastUpdateTime = now;
+  
+  client.sendAppMessage({ type: 'hand_update', handState });
+}
+```
