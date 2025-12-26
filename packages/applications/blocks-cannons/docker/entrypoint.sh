@@ -32,7 +32,7 @@ cat /app/client/session.json
 
 # Start the game server in the background
 echo "Starting game server for app: ${APP_ID}..."
-cd /app && node packages/applications/blocks-cannons/dist/server/index.js &
+cd /app && node packages/applications/blocks-cannons/dist/server/server.js &
 GAME_SERVER_PID=$!
 
 # If WITH_BOT is true, start the bot after a short delay
