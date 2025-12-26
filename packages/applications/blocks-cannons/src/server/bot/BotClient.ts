@@ -7,6 +7,10 @@
 import WebSocket from 'ws';
 import type {
   Block,
+  BlocksOpponentJoinedData,
+  BlocksResetData,
+  BlocksSessionEndedData,
+  BlocksWelcomeData,
   GamePhase,
   Position,
   Projectile,
@@ -58,6 +62,62 @@ const DEFAULT_CONFIG: BotConfig = {
 };
 
 type BotState = 'idle' | 'grabbing' | 'moving' | 'releasing';
+
+type FrameworkWelcomeMessage = {
+  type: 'welcome';
+  participantId: string;
+  participantNumber: 1 | 2;
+  sessionPhase: GamePhase | 'waiting' | 'finished';
+  appData: BlocksWelcomeData;
+};
+
+type FrameworkOpponentJoinedMessage = {
+  type: 'opponent_joined';
+  appData?: BlocksOpponentJoinedData;
+};
+
+type FrameworkOpponentLeftMessage = {
+  type: 'opponent_left';
+};
+
+type FrameworkSessionStartedMessage = {
+  type: 'session_started';
+};
+
+type FrameworkSessionEndedMessage = {
+  type: 'session_ended';
+  winnerId?: string;
+  winnerNumber?: 1 | 2;
+  reason: 'completed' | 'participant_left' | 'timeout' | 'app_condition';
+  appData?: BlocksSessionEndedData;
+};
+
+type FrameworkPlayAgainStatusMessage = {
+  type: 'play_again_status';
+  votedParticipantIds: string[];
+  totalParticipants: number;
+};
+
+type FrameworkSessionResetMessage = {
+  type: 'session_reset';
+  appData?: BlocksResetData;
+};
+
+type FrameworkErrorMessage = {
+  type: 'error';
+  message: string;
+};
+
+type BotServerMessage =
+  | ServerMessage
+  | FrameworkWelcomeMessage
+  | FrameworkOpponentJoinedMessage
+  | FrameworkOpponentLeftMessage
+  | FrameworkSessionStartedMessage
+  | FrameworkSessionEndedMessage
+  | FrameworkPlayAgainStatusMessage
+  | FrameworkSessionResetMessage
+  | FrameworkErrorMessage;
 
 /**
  * Automated game client that plays the block game.
@@ -117,7 +177,7 @@ export class BotClient {
 
     this.ws.on('message', (data: Buffer) => {
       try {
-        const message = JSON.parse(data.toString()) as ServerMessage;
+        const message = JSON.parse(data.toString()) as BotServerMessage;
         this.onMessage(message);
       } catch {
         logger.error('Failed to parse server message');
@@ -205,7 +265,7 @@ export class BotClient {
     return this.playerNumber;
   }
 
-  private onMessage(message: ServerMessage): void {
+  private onMessage(message: BotServerMessage): void {
     switch (message.type) {
       case 'welcome':
         this.handleWelcome(message);
@@ -253,11 +313,11 @@ export class BotClient {
         // Visual effect only, no state tracking needed
         break;
 
-      case 'game_started':
+      case 'session_started':
         this.handleGameStarted();
         break;
 
-      case 'game_over':
+      case 'session_ended':
         this.handleGameOver(message);
         break;
 
@@ -265,7 +325,7 @@ export class BotClient {
         // Bot doesn't need to track voting status, it auto-votes
         break;
 
-      case 'game_reset':
+      case 'session_reset':
         this.handleGameReset(message);
         break;
 
@@ -282,7 +342,7 @@ export class BotClient {
     this.scheduleNextAction();
   }
 
-  private handleGameOver(message: Extract<ServerMessage, { type: 'game_over' }>): void {
+  private handleGameOver(message: Extract<BotServerMessage, { type: 'session_ended' }>): void {
     const isWinner = message.winnerId === this.playerId;
     logger.info('Game over!', {
       winnerId: message.winnerId,
@@ -306,7 +366,7 @@ export class BotClient {
     this.send({ type: 'play_again_vote' });
   }
 
-  private handleGameReset(message: Extract<ServerMessage, { type: 'game_reset' }>): void {
+  private handleGameReset(message: Extract<BotServerMessage, { type: 'session_reset' }>): void {
     logger.info('Game reset - preparing for new round');
 
     // Clear current state
@@ -320,7 +380,7 @@ export class BotClient {
     this.state = 'idle';
 
     // Process fresh blocks
-    for (const block of message.blocks) {
+    for (const block of message.appData?.blocks ?? []) {
       if (block.ownerId === this.playerId) {
         this.myBlocks.set(block.id, block);
         if (block.blockType === 'cannon') {
@@ -344,11 +404,14 @@ export class BotClient {
     });
   }
 
-  private handleOpponentJoined(message: Extract<ServerMessage, { type: 'opponent_joined' }>): void {
-    logger.info('Opponent joined', { blocks: message.blocks.length });
+  private handleOpponentJoined(
+    message: Extract<BotServerMessage, { type: 'opponent_joined' }>
+  ): void {
+    const blocks = message.appData?.blocks ?? [];
+    logger.info('Opponent joined', { blocks: blocks.length });
 
     // Store opponent's blocks
-    for (const block of message.blocks) {
+    for (const block of blocks) {
       this.opponentBlocks.set(block.id, block);
       if (block.blockType === 'cannon') {
         this.opponentCannonId = block.id;
@@ -461,21 +524,21 @@ export class BotClient {
     }
   }
 
-  private handleWelcome(message: Extract<ServerMessage, { type: 'welcome' }>): void {
-    this.playerId = message.playerId;
-    this.playerNumber = message.playerNumber;
-    this.room = message.room;
-    this.gamePhase = message.gamePhase;
+  private handleWelcome(message: Extract<BotServerMessage, { type: 'welcome' }>): void {
+    this.playerId = message.participantId;
+    this.playerNumber = message.participantNumber;
+    this.room = message.appData.room;
+    this.gamePhase = message.sessionPhase as GamePhase;
 
     logger.info('Bot joined as player', {
       playerId: this.playerId,
-      playerNumber: message.playerNumber,
+      playerNumber: message.participantNumber,
       room: this.room,
       gamePhase: this.gamePhase,
     });
 
     // Store blocks separated by owner
-    for (const block of message.blocks) {
+    for (const block of message.appData.blocks) {
       if (block.ownerId === this.playerId) {
         this.myBlocks.set(block.id, block);
         if (block.blockType === 'cannon') {
@@ -491,7 +554,7 @@ export class BotClient {
     }
 
     // Store initial projectiles (if any)
-    for (const projectile of message.projectiles) {
+    for (const projectile of message.appData.projectiles) {
       this.allProjectiles.set(projectile.id, projectile);
     }
 

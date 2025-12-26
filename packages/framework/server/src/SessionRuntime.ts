@@ -11,10 +11,77 @@
  */
 
 import type {
+  FrameworkClientMessage,
   ParticipantId,
   ParticipantNumber,
+  SessionEndedReason,
   SessionPhase,
 } from '@gesture-app/framework-protocol';
+
+type FrameworkWelcomeMessage<TWelcomeData> = {
+  type: 'welcome';
+  participantId: ParticipantId;
+  participantNumber: ParticipantNumber;
+  sessionPhase: SessionPhase;
+  appData: TWelcomeData;
+};
+
+type FrameworkOpponentJoinedMessage<TOpponentJoinedData> = {
+  type: 'opponent_joined';
+  appData?: TOpponentJoinedData;
+};
+
+type FrameworkOpponentLeftMessage = {
+  type: 'opponent_left';
+};
+
+type FrameworkSessionStartedMessage = {
+  type: 'session_started';
+};
+
+type FrameworkSessionEndedMessage<TSessionEndedData> = {
+  type: 'session_ended';
+  reason: SessionEndedReason;
+  winnerId?: ParticipantId;
+  winnerNumber?: ParticipantNumber;
+  appData?: TSessionEndedData;
+};
+
+type FrameworkPlayAgainStatusMessage = {
+  type: 'play_again_status';
+  votedParticipantIds: ParticipantId[];
+  totalParticipants: number;
+};
+
+type FrameworkSessionResetMessage<TResetData> = {
+  type: 'session_reset';
+  appData?: TResetData;
+};
+
+type FrameworkErrorMessage = {
+  type: 'error';
+  message: string;
+};
+
+type FrameworkServerMessage<TWelcomeData, TResetData, TOpponentJoinedData, TSessionEndedData> =
+  | FrameworkWelcomeMessage<TWelcomeData>
+  | FrameworkOpponentJoinedMessage<TOpponentJoinedData>
+  | FrameworkOpponentLeftMessage
+  | FrameworkSessionStartedMessage
+  | FrameworkSessionEndedMessage<TSessionEndedData>
+  | FrameworkPlayAgainStatusMessage
+  | FrameworkSessionResetMessage<TResetData>
+  | FrameworkErrorMessage;
+
+type SessionServerMessage<
+  TWelcomeData,
+  TResetData,
+  TOpponentJoinedData,
+  TSessionEndedData,
+  TAppServerMessage,
+> =
+  | FrameworkServerMessage<TWelcomeData, TResetData, TOpponentJoinedData, TSessionEndedData>
+  | TAppServerMessage;
 
 /**
  * WebSocket-like interface for connection abstraction.
@@ -62,7 +129,14 @@ export interface MessageResponse<TMessage> {
  * Application hooks interface.
  * Apps implement this to integrate with the session runtime.
  */
-export interface AppHooks<TClientMessage, TServerMessage, TWelcomeData, TResetData> {
+export interface AppHooks<
+  TAppClientMessage extends { type: string },
+  TAppServerMessage extends { type: string },
+  TWelcomeData,
+  TResetData = undefined,
+  TOpponentJoinedData = undefined,
+  TSessionEndedData = undefined,
+> {
   /**
    * Generate participant ID.
    * @param participantNumber - 1 or 2
@@ -85,10 +159,10 @@ export interface AppHooks<TClientMessage, TServerMessage, TWelcomeData, TResetDa
    * @returns Updated responses to send
    */
   onMessage(
-    message: TClientMessage,
+    message: TAppClientMessage,
     senderId: ParticipantId,
     phase: SessionPhase
-  ): MessageResponse<TServerMessage>[];
+  ): MessageResponse<TAppServerMessage>[];
 
   /**
    * Called when the session starts (both participants ready).
@@ -102,17 +176,37 @@ export interface AppHooks<TClientMessage, TServerMessage, TWelcomeData, TResetDa
   onReset(): TResetData;
 
   /**
+   * Called when a participant joins and an opponent notification will be sent.
+   * Return data to include in the opponent_joined message.
+   */
+  onOpponentJoined?(joiningParticipant: Participant): TOpponentJoinedData | undefined;
+
+  /**
+   * Called when the session ends, before sending session_ended.
+   * Return data to include in the session_ended message.
+   */
+  onSessionEnd?(info: {
+    winnerId: ParticipantId;
+    winnerNumber: ParticipantNumber;
+    reason: SessionEndedReason;
+  }): TSessionEndedData | undefined;
+
+  /**
    * Called on each tick (if tick-based updates are enabled).
    * @param deltaTime - Time since last tick in seconds
    * @returns Messages to broadcast
    */
-  onTick?(deltaTime: number): TServerMessage[];
+  onTick?(deltaTime: number): TAppServerMessage[];
 
   /**
    * Check if the session should end (app-specific win/end condition).
    * @returns End data if session should end, null otherwise
    */
-  checkSessionEnd?(): { winnerId: ParticipantId; winnerNumber: ParticipantNumber } | null;
+  checkSessionEnd?(): {
+    winnerId: ParticipantId;
+    winnerNumber: ParticipantNumber;
+    appData?: TSessionEndedData;
+  } | null;
 }
 
 /**
@@ -140,10 +234,12 @@ export const DEFAULT_RUNTIME_CONFIG: SessionRuntimeConfig = {
  * Session runtime manages the lifecycle of a two-participant session.
  */
 export class SessionRuntime<
-  TClientMessage extends { type: string },
-  TServerMessage extends { type: string },
+  TAppClientMessage extends { type: string },
+  TAppServerMessage extends { type: string },
   TWelcomeData,
-  TResetData,
+  TResetData = undefined,
+  TOpponentJoinedData = undefined,
+  TSessionEndedData = undefined,
 > {
   private readonly connections = new Map<Connection, ParticipantId>();
   private readonly participants = new Map<ParticipantId, Participant>();
@@ -151,11 +247,34 @@ export class SessionRuntime<
   private tickInterval: ReturnType<typeof setInterval> | null = null;
   private lastTickTime = Date.now();
 
+  private static readonly FRAMEWORK_CLIENT_MESSAGE_TYPES = new Set([
+    'participant_ready',
+    'bot_identify',
+    'play_again_vote',
+  ]);
+
   constructor(
     private readonly config: SessionRuntimeConfig,
-    private readonly hooks: AppHooks<TClientMessage, TServerMessage, TWelcomeData, TResetData>,
-    private readonly serializeMessage: (message: TServerMessage) => string,
-    private readonly parseMessage: (data: string) => TClientMessage | null
+    private readonly hooks: AppHooks<
+      TAppClientMessage,
+      TAppServerMessage,
+      TWelcomeData,
+      TResetData,
+      TOpponentJoinedData,
+      TSessionEndedData
+    >,
+    private readonly serializeMessage: (
+      message: SessionServerMessage<
+        TWelcomeData,
+        TResetData,
+        TOpponentJoinedData,
+        TSessionEndedData,
+        TAppServerMessage
+      >
+    ) => string,
+    private readonly parseMessage: (
+      data: string
+    ) => FrameworkClientMessage | TAppClientMessage | null
   ) {}
 
   // ============ Connection Management ============
@@ -172,7 +291,7 @@ export class SessionRuntime<
       this.sendTo(conn, {
         type: 'error',
         message: 'Session is full. Only 2 participants allowed.',
-      } as unknown as TServerMessage);
+      });
       conn.close();
       return null;
     }
@@ -199,13 +318,15 @@ export class SessionRuntime<
       participantId,
       participantNumber,
       sessionPhase: this.phase,
-      ...welcomeData,
-    } as unknown as TServerMessage);
+      appData: welcomeData,
+    });
 
-    // Notify opponent
+    // Notify opponent with optional app payload
+    const opponentData = this.hooks.onOpponentJoined?.(participant);
     this.broadcastToOthers(conn, {
       type: 'opponent_joined',
-    } as unknown as TServerMessage);
+      appData: opponentData,
+    });
 
     return participant;
   }
@@ -221,10 +342,20 @@ export class SessionRuntime<
     this.participants.delete(participantId);
     this.connections.delete(conn);
 
-    // Notify remaining participant
+    const remainingParticipant = [...this.participants.values()].find(
+      (p) => p.id !== participantId
+    );
+
+    if (this.phase === 'playing') {
+      const winnerId = remainingParticipant?.id;
+      const winnerNumber = remainingParticipant?.number;
+      this.endSession(winnerId, winnerNumber, 'participant_left');
+    }
+
+    // Notify remaining participant(s)
     this.broadcastToOthers(conn, {
       type: 'opponent_left',
-    } as unknown as TServerMessage);
+    });
   }
 
   /**
@@ -234,23 +365,47 @@ export class SessionRuntime<
     const participantId = this.connections.get(conn);
     if (!participantId) return;
 
-    const message = this.parseMessage(rawData);
+    const message = this.parseFrameworkOrAppMessage(rawData);
     if (!message) {
       this.sendTo(conn, {
         type: 'error',
         message: 'Invalid message format',
-      } as unknown as TServerMessage);
+      });
       return;
     }
 
     // Handle framework-level messages
-    if (this.handleFrameworkMessage(conn, participantId, message)) {
+    if (this.isFrameworkClientMessage(message)) {
+      this.handleFrameworkMessage(conn, participantId, message);
       return;
     }
 
     // Delegate to app handler
-    const responses = this.hooks.onMessage(message, participantId, this.phase);
+    const responses = this.hooks.onMessage(message as TAppClientMessage, participantId, this.phase);
     this.sendResponses(conn, responses);
+  }
+
+  private isFrameworkClientMessage(
+    message: FrameworkClientMessage | TAppClientMessage
+  ): message is FrameworkClientMessage {
+    return SessionRuntime.FRAMEWORK_CLIENT_MESSAGE_TYPES.has(message.type);
+  }
+
+  private parseFrameworkOrAppMessage(
+    rawData: string
+  ): FrameworkClientMessage | TAppClientMessage | null {
+    try {
+      const parsed = JSON.parse(rawData) as { type?: string };
+      if (parsed && typeof parsed === 'object' && typeof parsed.type === 'string') {
+        if (this.isFrameworkClientMessage(parsed as FrameworkClientMessage)) {
+          return parsed as FrameworkClientMessage;
+        }
+      }
+    } catch {
+      // fall through to app parser
+    }
+
+    return this.parseMessage(rawData);
   }
 
   // ============ Framework Message Handlers ============
@@ -262,24 +417,20 @@ export class SessionRuntime<
   private handleFrameworkMessage(
     _conn: Connection,
     participantId: ParticipantId,
-    message: TClientMessage
-  ): boolean {
+    message: FrameworkClientMessage
+  ): void {
     switch (message.type) {
       case 'participant_ready':
-      case 'player_ready': // Backwards compatibility
         this.handleParticipantReady(participantId);
-        return true;
+        return;
 
       case 'bot_identify':
         this.handleBotIdentify(participantId);
-        return true;
+        return;
 
       case 'play_again_vote':
         this.handlePlayAgainVote(participantId);
-        return true;
-
-      default:
-        return false;
+        return;
     }
   }
 
@@ -334,7 +485,7 @@ export class SessionRuntime<
       type: 'play_again_status',
       votedParticipantIds: votedIds,
       totalParticipants: this.participants.size,
-    } as unknown as TServerMessage);
+    });
 
     // Check if all want to play again
     if (this.allParticipantsWantPlayAgain()) {
@@ -358,7 +509,7 @@ export class SessionRuntime<
 
     this.broadcastToAll({
       type: 'session_started',
-    } as unknown as TServerMessage);
+    });
 
     // Start tick loop if enabled
     if (this.config.tickEnabled) {
@@ -369,18 +520,33 @@ export class SessionRuntime<
   /**
    * End the session with a winner.
    */
-  endSession(winnerId: ParticipantId, winnerNumber: ParticipantNumber, reason: string): void {
+  endSession(
+    winnerId: ParticipantId | undefined,
+    winnerNumber: ParticipantNumber | undefined,
+    reason: SessionEndedReason,
+    appDataFromCaller?: TSessionEndedData
+  ): void {
     if (this.phase !== 'playing') return;
 
     this.phase = 'finished';
     this.stopTickLoop();
+
+    let appData = appDataFromCaller;
+
+    if (!appData && winnerId && winnerNumber) {
+      const hookData = this.hooks.onSessionEnd?.({ winnerId, winnerNumber, reason });
+      if (hookData !== undefined) {
+        appData = hookData as TSessionEndedData;
+      }
+    }
 
     this.broadcastToAll({
       type: 'session_ended',
       winnerId,
       winnerNumber,
       reason,
-    } as unknown as TServerMessage);
+      appData,
+    });
   }
 
   /**
@@ -405,8 +571,8 @@ export class SessionRuntime<
     // Broadcast reset
     this.broadcastToAll({
       type: 'session_reset',
-      ...resetData,
-    } as unknown as TServerMessage);
+      appData: resetData,
+    });
   }
 
   // ============ Tick Loop ============
@@ -429,7 +595,12 @@ export class SessionRuntime<
       // Check for session end
       const endResult = this.hooks.checkSessionEnd?.();
       if (endResult) {
-        this.endSession(endResult.winnerId, endResult.winnerNumber, 'app_condition');
+        this.endSession(
+          endResult.winnerId,
+          endResult.winnerNumber,
+          'app_condition',
+          endResult.appData
+        );
       }
     }, this.config.tickIntervalMs);
   }
@@ -450,13 +621,30 @@ export class SessionRuntime<
 
   // ============ Message Routing ============
 
-  private sendTo(conn: Connection, message: TServerMessage): void {
+  private sendTo(
+    conn: Connection,
+    message: SessionServerMessage<
+      TWelcomeData,
+      TResetData,
+      TOpponentJoinedData,
+      TSessionEndedData,
+      TAppServerMessage
+    >
+  ): void {
     if (conn.readyState === conn.OPEN) {
       conn.send(this.serializeMessage(message));
     }
   }
 
-  private broadcastToAll(message: TServerMessage): void {
+  private broadcastToAll(
+    message: SessionServerMessage<
+      TWelcomeData,
+      TResetData,
+      TOpponentJoinedData,
+      TSessionEndedData,
+      TAppServerMessage
+    >
+  ): void {
     const serialized = this.serializeMessage(message);
     for (const conn of this.connections.keys()) {
       if (conn.readyState === conn.OPEN) {
@@ -465,7 +653,16 @@ export class SessionRuntime<
     }
   }
 
-  private broadcastToOthers(senderConn: Connection, message: TServerMessage): void {
+  private broadcastToOthers(
+    senderConn: Connection,
+    message: SessionServerMessage<
+      TWelcomeData,
+      TResetData,
+      TOpponentJoinedData,
+      TSessionEndedData,
+      TAppServerMessage
+    >
+  ): void {
     const serialized = this.serializeMessage(message);
     for (const conn of this.connections.keys()) {
       if (conn !== senderConn && conn.readyState === conn.OPEN) {
@@ -476,7 +673,7 @@ export class SessionRuntime<
 
   private sendResponses(
     senderConn: Connection,
-    responses: MessageResponse<TServerMessage>[]
+    responses: MessageResponse<TAppServerMessage>[]
   ): void {
     for (const response of responses) {
       switch (response.target) {
@@ -547,7 +744,16 @@ export class SessionRuntime<
   }
 
   /** Send a message to a specific participant */
-  sendToParticipant(participantId: ParticipantId, message: TServerMessage): void {
+  sendToParticipant(
+    participantId: ParticipantId,
+    message: SessionServerMessage<
+      TWelcomeData,
+      TResetData,
+      TOpponentJoinedData,
+      TSessionEndedData,
+      TAppServerMessage
+    >
+  ): void {
     const conn = this.getConnection(participantId);
     if (conn) {
       this.sendTo(conn, message);
@@ -555,7 +761,15 @@ export class SessionRuntime<
   }
 
   /** Broadcast a message to all participants */
-  broadcast(message: TServerMessage): void {
+  broadcast(
+    message: SessionServerMessage<
+      TWelcomeData,
+      TResetData,
+      TOpponentJoinedData,
+      TSessionEndedData,
+      TAppServerMessage
+    >
+  ): void {
     this.broadcastToAll(message);
   }
 }

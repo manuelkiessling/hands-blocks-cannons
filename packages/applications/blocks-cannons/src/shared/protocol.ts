@@ -73,13 +73,6 @@ export type GamePhase = z.infer<typeof GamePhaseSchema>;
 // ============ Client -> Server Messages ============
 
 /**
- * Client request to join the game.
- */
-export const JoinGameMessage = z.object({
-  type: z.literal('join_game'),
-});
-
-/**
  * Client request to grab a block.
  */
 export const BlockGrabMessage = z.object({
@@ -113,76 +106,18 @@ export const CannonFireMessage = z.object({
 });
 
 /**
- * Bot identifies itself to the server.
- * Sent by bot clients after receiving welcome message.
- */
-export const BotIdentifyMessage = z.object({
-  type: z.literal('bot_identify'),
-});
-
-/**
- * Human player signals they are ready (first hand tracking occurred).
- * Sent by human clients after first hand raise detection.
- */
-export const PlayerReadyMessage = z.object({
-  type: z.literal('player_ready'),
-});
-
-/**
- * Player votes to play again after game ends.
- */
-export const PlayAgainVoteMessage = z.object({
-  type: z.literal('play_again_vote'),
-});
-
-/**
  * Union of all valid client-to-server messages.
  */
 export const ClientMessage = z.discriminatedUnion('type', [
-  JoinGameMessage,
   BlockGrabMessage,
   BlockMoveMessage,
   BlockReleaseMessage,
   CannonFireMessage,
-  BotIdentifyMessage,
-  PlayerReadyMessage,
-  PlayAgainVoteMessage,
 ]);
 
 export type ClientMessage = z.infer<typeof ClientMessage>;
 
 // ============ Server -> Client Messages ============
-
-/**
- * Server welcome message with initial game state.
- */
-export const WelcomeMessage = z.object({
-  type: z.literal('welcome'),
-  playerId: z.string(),
-  playerNumber: z.union([z.literal(1), z.literal(2)]),
-  blocks: z.array(BlockSchema),
-  projectiles: z.array(ProjectileSchema),
-  room: RoomBoundsSchema,
-  cameraDistance: z.number(),
-  wallGrid: WallGridConfigSchema,
-  projectileSize: z.number(),
-  gamePhase: GamePhaseSchema,
-});
-
-/**
- * Notification that an opponent has joined.
- */
-export const OpponentJoinedMessage = z.object({
-  type: z.literal('opponent_joined'),
-  blocks: z.array(BlockSchema),
-});
-
-/**
- * Notification that an opponent has left.
- */
-export const OpponentLeftMessage = z.object({
-  type: z.literal('opponent_left'),
-});
 
 /**
  * Notification that a block was grabbed.
@@ -264,48 +199,9 @@ export const WallHitMessage = z.object({
 });
 
 /**
- * Notification that the game has started (all humans ready).
- * Broadcast to all players when game transitions from waiting to playing.
- */
-export const GameStartedMessage = z.object({
-  type: z.literal('game_started'),
-});
-
-/**
- * Notification that the game is over with a winner.
- */
-export const GameOverMessage = z.object({
-  type: z.literal('game_over'),
-  winnerId: z.string(),
-  winnerNumber: z.union([z.literal(1), z.literal(2)]),
-  reason: z.literal('blocks_destroyed'),
-});
-
-/**
- * Play again voting status update.
- */
-export const PlayAgainStatusMessage = z.object({
-  type: z.literal('play_again_status'),
-  votedPlayerIds: z.array(z.string()),
-  totalPlayers: z.number(),
-});
-
-/**
- * Notification that the game is resetting for a new round.
- * Contains fresh block positions for all players.
- */
-export const GameResetMessage = z.object({
-  type: z.literal('game_reset'),
-  blocks: z.array(BlockSchema),
-});
-
-/**
  * Union of all valid server-to-client messages.
  */
 export const ServerMessage = z.discriminatedUnion('type', [
-  WelcomeMessage,
-  OpponentJoinedMessage,
-  OpponentLeftMessage,
   BlockGrabbedMessage,
   BlockMovedMessage,
   BlockReleasedMessage,
@@ -314,14 +210,38 @@ export const ServerMessage = z.discriminatedUnion('type', [
   ProjectileDestroyedMessage,
   BlockDestroyedMessage,
   WallHitMessage,
-  GameStartedMessage,
-  GameOverMessage,
-  PlayAgainStatusMessage,
-  GameResetMessage,
   ErrorMessage,
 ]);
 
 export type ServerMessage = z.infer<typeof ServerMessage>;
+
+// ============ Framework appData payloads ============
+
+export const BlocksWelcomeDataSchema = z.object({
+  blocks: z.array(BlockSchema),
+  projectiles: z.array(ProjectileSchema),
+  room: RoomBoundsSchema,
+  cameraDistance: z.number(),
+  wallGrid: WallGridConfigSchema,
+  projectileSize: z.number(),
+  gamePhase: GamePhaseSchema,
+});
+export type BlocksWelcomeData = z.infer<typeof BlocksWelcomeDataSchema>;
+
+export const BlocksOpponentJoinedDataSchema = z.object({
+  blocks: z.array(BlockSchema),
+});
+export type BlocksOpponentJoinedData = z.infer<typeof BlocksOpponentJoinedDataSchema>;
+
+export const BlocksResetDataSchema = z.object({
+  blocks: z.array(BlockSchema),
+});
+export type BlocksResetData = z.infer<typeof BlocksResetDataSchema>;
+
+export const BlocksSessionEndedDataSchema = z.object({
+  appReason: z.literal('blocks_destroyed').optional(),
+});
+export type BlocksSessionEndedData = z.infer<typeof BlocksSessionEndedDataSchema>;
 
 // ============ Utility Functions ============
 

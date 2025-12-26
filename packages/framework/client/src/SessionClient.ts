@@ -12,6 +12,7 @@
 import type {
   ParticipantId,
   ParticipantNumber,
+  SessionEndedReason,
   SessionPhase,
 } from '@gesture-app/framework-protocol';
 
@@ -33,7 +34,13 @@ export interface SessionWelcomeData<TAppData = unknown> {
 /**
  * Session client event handlers.
  */
-export interface SessionClientEvents<TServerMessage, TWelcomeData> {
+export interface SessionClientEvents<
+  TAppServerMessage,
+  TWelcomeData,
+  TOpponentJoinedData = undefined,
+  TResetData = undefined,
+  TSessionEndedData = undefined,
+> {
   /** Called when connection state changes */
   onConnectionStateChange?: (state: ConnectionState) => void;
 
@@ -41,7 +48,7 @@ export interface SessionClientEvents<TServerMessage, TWelcomeData> {
   onSessionJoin?: (data: SessionWelcomeData<TWelcomeData>) => void;
 
   /** Called when opponent joins */
-  onOpponentJoined?: (appData?: unknown) => void;
+  onOpponentJoined?: (appData?: TOpponentJoinedData) => void;
 
   /** Called when opponent leaves */
   onOpponentLeft?: () => void;
@@ -50,19 +57,24 @@ export interface SessionClientEvents<TServerMessage, TWelcomeData> {
   onSessionStart?: () => void;
 
   /** Called when session ends */
-  onSessionEnd?: (winnerId: ParticipantId, winnerNumber: ParticipantNumber, reason: string) => void;
+  onSessionEnd?: (
+    winnerId: ParticipantId | undefined,
+    winnerNumber: ParticipantNumber | undefined,
+    reason: SessionEndedReason,
+    appData?: TSessionEndedData
+  ) => void;
 
   /** Called when play again voting status updates */
   onPlayAgainStatus?: (votedCount: number, totalParticipants: number) => void;
 
   /** Called when session is reset for a new round */
-  onSessionReset?: (appData?: unknown) => void;
+  onSessionReset?: (appData?: TResetData) => void;
 
   /** Called on server error */
   onError?: (message: string) => void;
 
   /** Called for app-specific messages */
-  onAppMessage?: (message: TServerMessage) => void;
+  onAppMessage?: (message: TAppServerMessage) => void;
 }
 
 /**
@@ -94,12 +106,9 @@ const FRAMEWORK_MESSAGE_TYPES = new Set([
   'opponent_joined',
   'opponent_left',
   'session_started',
-  'game_started', // Backwards compatibility
   'session_ended',
-  'game_over', // Backwards compatibility
   'play_again_status',
   'session_reset',
-  'game_reset', // Backwards compatibility
   'error',
 ]);
 
@@ -107,9 +116,12 @@ const FRAMEWORK_MESSAGE_TYPES = new Set([
  * Session client for two-participant WebSocket applications.
  */
 export class SessionClient<
-  TClientMessage extends { type: string } = { type: string },
-  TServerMessage extends { type: string } = { type: string },
+  TAppClientMessage extends { type: string } = { type: string },
+  TAppServerMessage extends { type: string } = { type: string },
   TWelcomeData = unknown,
+  TOpponentJoinedData = undefined,
+  TResetData = undefined,
+  TSessionEndedData = undefined,
 > {
   private ws: WebSocket | null = null;
   private connectionState: ConnectionState = 'disconnected';
@@ -122,7 +134,13 @@ export class SessionClient<
   private sessionPhase: SessionPhase = 'waiting';
 
   constructor(
-    private readonly events: SessionClientEvents<TServerMessage, TWelcomeData> = {},
+    private readonly events: SessionClientEvents<
+      TAppServerMessage,
+      TWelcomeData,
+      TOpponentJoinedData,
+      TResetData,
+      TSessionEndedData
+    > = {},
     private readonly config: SessionClientConfig = DEFAULT_CLIENT_CONFIG
   ) {}
 
@@ -239,7 +257,7 @@ export class SessionClient<
   /**
    * Send an app-specific message to the server.
    */
-  sendAppMessage(message: TClientMessage): void {
+  sendAppMessage(message: TAppClientMessage): void {
     this.send(message);
   }
 
@@ -267,7 +285,7 @@ export class SessionClient<
       this.handleFrameworkMessage(message);
     } else {
       // Delegate to app handler
-      this.events.onAppMessage?.(message as TServerMessage);
+      this.events.onAppMessage?.(message as TAppServerMessage);
     }
   }
 
@@ -278,7 +296,7 @@ export class SessionClient<
         break;
 
       case 'opponent_joined':
-        this.events.onOpponentJoined?.(message);
+        this.events.onOpponentJoined?.(message['appData'] as TOpponentJoinedData | undefined);
         break;
 
       case 'opponent_left':
@@ -286,35 +304,30 @@ export class SessionClient<
         break;
 
       case 'session_started':
-      case 'game_started':
         this.sessionPhase = 'playing';
         this.events.onSessionStart?.();
         break;
 
       case 'session_ended':
-      case 'game_over':
         this.sessionPhase = 'finished';
         this.events.onSessionEnd?.(
-          message['winnerId'] as ParticipantId,
-          message['winnerNumber'] as ParticipantNumber,
-          (message['reason'] as string) ?? 'unknown'
+          message['winnerId'] as ParticipantId | undefined,
+          message['winnerNumber'] as ParticipantNumber | undefined,
+          (message['reason'] as SessionEndedReason) ?? 'completed',
+          message['appData'] as TSessionEndedData | undefined
         );
         break;
 
       case 'play_again_status':
         this.events.onPlayAgainStatus?.(
-          (
-            (message['votedParticipantIds'] as unknown[]) ??
-            (message['votedPlayerIds'] as unknown[])
-          )?.length ?? 0,
-          (message['totalParticipants'] as number) ?? (message['totalPlayers'] as number) ?? 0
+          (message['votedParticipantIds'] as unknown[])?.length ?? 0,
+          (message['totalParticipants'] as number) ?? 0
         );
         break;
 
       case 'session_reset':
-      case 'game_reset':
         this.sessionPhase = 'waiting';
-        this.events.onSessionReset?.(message);
+        this.events.onSessionReset?.(message['appData'] as TResetData | undefined);
         break;
 
       case 'error':
@@ -325,19 +338,16 @@ export class SessionClient<
 
   private handleWelcome(message: { type: string; [key: string]: unknown }): void {
     // Extract framework fields
-    this.participantId = (message['participantId'] ?? message['playerId']) as ParticipantId;
-    this.participantNumber = (message['participantNumber'] ??
-      message['playerNumber']) as ParticipantNumber;
-    this.sessionPhase = (message['sessionPhase'] ??
-      message['gamePhase'] ??
-      'waiting') as SessionPhase;
+    this.participantId = message['participantId'] as ParticipantId;
+    this.participantNumber = message['participantNumber'] as ParticipantNumber;
+    this.sessionPhase = (message['sessionPhase'] as SessionPhase) ?? 'waiting';
 
     // Pass through to handler with app data
     this.events.onSessionJoin?.({
       participantId: this.participantId,
       participantNumber: this.participantNumber,
       sessionPhase: this.sessionPhase,
-      appData: message as TWelcomeData,
+      appData: message['appData'] as TWelcomeData,
     });
   }
 

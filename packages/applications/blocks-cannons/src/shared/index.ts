@@ -20,7 +20,14 @@ export {
   PROJECTILE_COLOR,
 } from './constants.js';
 // Protocol
-export type { ClientMessage, ServerMessage } from './protocol.js';
+export type {
+  BlocksOpponentJoinedData,
+  BlocksResetData,
+  BlocksSessionEndedData,
+  BlocksWelcomeData,
+  ClientMessage,
+  ServerMessage,
+} from './protocol.js';
 export {
   BlockDestroyedMessage,
   BlockGrabbedMessage,
@@ -30,21 +37,15 @@ export {
   BlockReleasedMessage,
   BlockReleaseMessage,
   BlockSchema,
+  BlocksOpponentJoinedDataSchema,
+  BlocksResetDataSchema,
+  BlocksSessionEndedDataSchema,
+  BlocksWelcomeDataSchema,
   BlockTypeSchema,
-  BotIdentifyMessage,
   CannonFireMessage,
   ErrorMessage,
-  GameOverMessage,
   GamePhaseSchema,
-  GameResetMessage,
-  GameStartedMessage,
   isMessageType,
-  JoinGameMessage,
-  OpponentJoinedMessage,
-  OpponentLeftMessage,
-  PlayAgainStatusMessage,
-  PlayAgainVoteMessage,
-  PlayerReadyMessage,
   PositionSchema,
   ProjectileDestroyedMessage,
   ProjectileSchema,
@@ -55,7 +56,6 @@ export {
   serializeServerMessage,
   WallGridConfigSchema,
   WallHitMessage,
-  WelcomeMessage,
 } from './protocol.js';
 // Types
 export type {

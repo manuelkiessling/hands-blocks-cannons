@@ -200,31 +200,6 @@ describe('SessionClient', () => {
       expect(client.getParticipantNumber()).toBe(1);
       expect(client.getSessionPhase()).toBe('waiting');
     });
-
-    it('should support backwards-compatible field names', () => {
-      let welcomeData: { participantId: string; participantNumber: number } | null = null;
-      const client = createClient({
-        onSessionJoin: (data) => {
-          welcomeData = {
-            participantId: data.participantId,
-            participantNumber: data.participantNumber,
-          };
-        },
-      });
-
-      client.connect('ws://localhost:3001');
-      getLastWebSocket().simulateOpen();
-      getLastWebSocket().simulateMessage({
-        type: 'welcome',
-        playerId: 'player-2', // Old field name
-        playerNumber: 2, // Old field name
-        gamePhase: 'playing', // Old field name
-      });
-
-      expect(welcomeData?.participantId).toBe('player-2');
-      expect(welcomeData?.participantNumber).toBe(2);
-      expect(client.getSessionPhase()).toBe('playing');
-    });
   });
 
   describe('session lifecycle', () => {
@@ -274,22 +249,6 @@ describe('SessionClient', () => {
       expect(client.getSessionPhase()).toBe('playing');
     });
 
-    it('should handle game_started message (backwards compat)', () => {
-      let started = false;
-      const client = createClient({
-        onSessionStart: () => {
-          started = true;
-        },
-      });
-
-      client.connect('ws://localhost:3001');
-      getLastWebSocket().simulateOpen();
-      getLastWebSocket().simulateMessage({ type: 'game_started' });
-
-      expect(started).toBe(true);
-      expect(client.getSessionPhase()).toBe('playing');
-    });
-
     it('should handle session_ended message', () => {
       let endData: { winnerId: string; winnerNumber: number; reason: string } | null = null;
       const client = createClient({
@@ -310,27 +269,6 @@ describe('SessionClient', () => {
       expect(endData?.winnerId).toBe('player-1');
       expect(endData?.winnerNumber).toBe(1);
       expect(endData?.reason).toBe('blocks_destroyed');
-      expect(client.getSessionPhase()).toBe('finished');
-    });
-
-    it('should handle game_over message (backwards compat)', () => {
-      let endData: { winnerId: string } | null = null;
-      const client = createClient({
-        onSessionEnd: (winnerId) => {
-          endData = { winnerId };
-        },
-      });
-
-      client.connect('ws://localhost:3001');
-      getLastWebSocket().simulateOpen();
-      getLastWebSocket().simulateMessage({
-        type: 'game_over',
-        winnerId: 'player-2',
-        winnerNumber: 2,
-        reason: 'test',
-      });
-
-      expect(endData?.winnerId).toBe('player-2');
       expect(client.getSessionPhase()).toBe('finished');
     });
 
@@ -398,25 +336,6 @@ describe('SessionClient', () => {
       });
 
       expect(resetReceived).toBe(true);
-      expect(client.getSessionPhase()).toBe('waiting');
-    });
-
-    it('should handle game_reset message (backwards compat)', () => {
-      let resetData: unknown = null;
-      const client = createClient({
-        onSessionReset: (data) => {
-          resetData = data;
-        },
-      });
-
-      client.connect('ws://localhost:3001');
-      getLastWebSocket().simulateOpen();
-      getLastWebSocket().simulateMessage({
-        type: 'game_reset',
-        blocks: [{ id: 'block-1' }],
-      });
-
-      expect(resetData).toBeDefined();
       expect(client.getSessionPhase()).toBe('waiting');
     });
   });

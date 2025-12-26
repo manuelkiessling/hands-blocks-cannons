@@ -19,6 +19,7 @@ COPY packages/applications/hello-hands/package.json packages/applications/hello-
 
 RUN npm install --workspace=@gesture-app/framework-protocol \
     --workspace=@gesture-app/framework-server \
+    --workspace=@gesture-app/framework-client \
     --workspace=@gesture-app/hello-hands
 
 # Copy source and build
@@ -30,6 +31,7 @@ COPY tsconfig.base.json ./
 # Build packages in order
 RUN npm run build --workspace=@gesture-app/framework-protocol
 RUN npm run build --workspace=@gesture-app/framework-server
+RUN npm run build --workspace=@gesture-app/framework-client
 RUN npm run build --workspace=@gesture-app/hello-hands
 
 # Build client
@@ -48,6 +50,8 @@ COPY --from=builder /build/packages/framework/protocol/dist ./packages/framework
 COPY --from=builder /build/packages/framework/protocol/package.json ./packages/framework/protocol/
 COPY --from=builder /build/packages/framework/server/dist ./packages/framework/server/dist
 COPY --from=builder /build/packages/framework/server/package.json ./packages/framework/server/
+COPY --from=builder /build/packages/framework/client/dist ./packages/framework/client/dist
+COPY --from=builder /build/packages/framework/client/package.json ./packages/framework/client/
 COPY --from=builder /build/packages/applications/hello-hands/dist ./packages/applications/hello-hands/dist
 COPY --from=builder /build/packages/applications/hello-hands/package.json ./packages/applications/hello-hands/
 
@@ -62,6 +66,7 @@ COPY packages/applications/hello-hands/docker/entrypoint.sh /app/entrypoint.sh
 COPY package*.json ./
 RUN npm install --workspace=@gesture-app/framework-protocol \
     --workspace=@gesture-app/framework-server \
+    --workspace=@gesture-app/framework-client \
     --workspace=@gesture-app/hello-hands \
     --omit=dev
 

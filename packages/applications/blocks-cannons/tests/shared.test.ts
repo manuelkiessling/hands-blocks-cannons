@@ -9,6 +9,7 @@ import {
   BlockGrabMessage,
   type BlockId,
   BlockSchema,
+  BlocksWelcomeDataSchema,
   type BlockType,
   CANNON_COLOR,
   type GamePhase,
@@ -25,7 +26,6 @@ import {
   type RoomBounds,
   type ServerMessage,
   serializeServerMessage,
-  WelcomeMessage,
 } from '../src/shared/index.js';
 
 describe('blocks-cannons/shared', () => {
@@ -158,11 +158,8 @@ describe('blocks-cannons/shared', () => {
       expect(result.success).toBe(true);
     });
 
-    it('should validate WelcomeMessage', () => {
+    it('should validate BlocksWelcomeDataSchema (appData for welcome)', () => {
       const msg = {
-        type: 'welcome',
-        playerId: 'player-1',
-        playerNumber: 1,
         blocks: [],
         projectiles: [],
         room: { minX: -7, maxX: 7, minY: -5, maxY: 5, minZ: -8, maxZ: 32 },
@@ -171,7 +168,7 @@ describe('blocks-cannons/shared', () => {
         projectileSize: 0.3,
         gamePhase: 'waiting',
       };
-      const result = WelcomeMessage.safeParse(msg);
+      const result = BlocksWelcomeDataSchema.safeParse(msg);
       expect(result.success).toBe(true);
     });
   });
@@ -189,9 +186,9 @@ describe('blocks-cannons/shared', () => {
     });
 
     it('should serialize server messages', () => {
-      const msg: ServerMessage = { type: 'game_started' };
+      const msg: ServerMessage = { type: 'block_grabbed', playerId: 'p1', blockId: 'b1' };
       const json = serializeServerMessage(msg);
-      expect(json).toBe('{"type":"game_started"}');
+      expect(json).toBe('{"type":"block_grabbed","playerId":"p1","blockId":"b1"}');
     });
   });
 });

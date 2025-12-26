@@ -12,12 +12,7 @@ import type {
   HelloHandsWelcomeData,
   ServerMessage,
 } from '../shared/protocol.js';
-import {
-  createHelloHandsConfig,
-  HelloHandsHooks,
-  parseMessage,
-  serializeMessage,
-} from './HelloHandsSession.js';
+import { createHelloHandsConfig, HelloHandsHooks, parseMessage } from './HelloHandsSession.js';
 
 // biome-ignore lint/complexity/useLiteralKeys: Required for noPropertyAccessFromIndexSignature
 const PORT = Number(process.env['PORT']) || 8080;
@@ -33,7 +28,7 @@ const runtime = new SessionRuntime<
   ServerMessage,
   HelloHandsWelcomeData,
   HelloHandsResetData
->(config, hooks, serializeMessage, parseMessage);
+>(config, hooks, (message) => JSON.stringify(message), parseMessage);
 
 // Create WebSocket server
 const wss = new WebSocketServer({ port: PORT });

@@ -7,65 +7,45 @@
  * their own domain-specific messages.
  */
 
-/**
- * Participant identifier.
- */
-export type ParticipantId = string;
+export {
+  BotIdentifyMessageSchema,
+  createSessionClientMessageSchema,
+  createSessionServerMessageSchema,
+  ErrorMessageSchema,
+  type FrameworkClientMessage,
+  FrameworkClientMessageSchema,
+  PlayAgainStatusMessageSchema,
+  PlayAgainVoteMessageSchema,
+  type SessionEndedReason,
+  SessionEndedReasonSchema,
+  SessionStartedMessageSchema,
+} from './messages.js';
+export {
+  type ParticipantId,
+  ParticipantIdSchema,
+  type ParticipantNumber,
+  ParticipantNumberSchema,
+  type SessionPhase,
+  SessionPhaseSchema,
+} from './types.js';
 
 /**
- * Participant number (1 or 2).
- */
-export type ParticipantNumber = 1 | 2;
-
-/**
- * Session lifecycle phase.
- */
-export type SessionPhase = 'waiting' | 'playing' | 'finished';
-
-/**
- * Base interface for all framework messages (client → server).
- */
-export interface FrameworkClientMessage {
-  readonly type: string;
-}
-
-/**
- * Base interface for all framework messages (server → client).
- */
-export interface FrameworkServerMessage {
-  readonly type: string;
-}
-
-/**
- * Participant ready message (client → server).
- * Sent when participant has raised their hand and is ready to start.
- */
-export interface ParticipantReadyMessage extends FrameworkClientMessage {
-  readonly type: 'participant_ready';
-}
-
-/**
- * Session started message (server → clients).
- * Sent when all participants are ready and the session begins.
- */
-export interface SessionStartedMessage extends FrameworkServerMessage {
-  readonly type: 'session_started';
-}
-
-/**
- * Session ended message (server → clients).
- * Sent when the session ends (either normally or due to disconnect).
- */
-export interface SessionEndedMessage extends FrameworkServerMessage {
-  readonly type: 'session_ended';
-  readonly reason: 'completed' | 'participant_left' | 'timeout';
-}
-
-/**
- * Check if a message is a framework lifecycle message.
+ * Check if a message is a framework lifecycle message (canonical set).
  */
 export function isFrameworkMessage(message: { type: string }): boolean {
-  return ['participant_ready', 'session_started', 'session_ended'].includes(message.type);
+  return new Set([
+    'participant_ready',
+    'bot_identify',
+    'play_again_vote',
+    'welcome',
+    'opponent_joined',
+    'opponent_left',
+    'session_started',
+    'session_ended',
+    'play_again_status',
+    'session_reset',
+    'error',
+  ]).has(message.type);
 }
 
 /**

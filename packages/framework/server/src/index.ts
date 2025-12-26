@@ -13,11 +13,12 @@
 import type {
   ParticipantId,
   ParticipantNumber,
+  SessionEndedReason,
   SessionPhase,
 } from '@gesture-app/framework-protocol';
 
 // Re-export protocol types for convenience
-export type { ParticipantId, ParticipantNumber, SessionPhase };
+export type { ParticipantId, ParticipantNumber, SessionPhase, SessionEndedReason };
 
 // Export session runtime
 export {

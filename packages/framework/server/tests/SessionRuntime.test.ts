@@ -142,7 +142,9 @@ describe('SessionRuntime', () => {
       expect(welcome.participantId).toBe('participant-1');
       expect(welcome.participantNumber).toBe(1);
       expect(welcome.sessionPhase).toBe('waiting');
-      expect(welcome.customData).toBe('welcome');
+      expect((welcome as { appData?: { customData?: string } }).appData?.customData).toBe(
+        'welcome'
+      );
     });
 
     it('should notify opponent when second participant joins', () => {
@@ -186,7 +188,7 @@ describe('SessionRuntime', () => {
       runtime.handleConnection(conn2);
 
       // Only first participant ready
-      runtime.handleMessage(conn1, JSON.stringify({ type: 'player_ready' }));
+      runtime.handleMessage(conn1, JSON.stringify({ type: 'participant_ready' }));
 
       expect(runtime.getPhase()).toBe('waiting');
       expect(hooks.calls.filter((c) => c.method === 'onSessionStart')).toHaveLength(0);
@@ -203,8 +205,8 @@ describe('SessionRuntime', () => {
       conn1.sentMessages.length = 0;
       conn2.sentMessages.length = 0;
 
-      runtime.handleMessage(conn1, JSON.stringify({ type: 'player_ready' }));
-      runtime.handleMessage(conn2, JSON.stringify({ type: 'player_ready' }));
+      runtime.handleMessage(conn1, JSON.stringify({ type: 'participant_ready' }));
+      runtime.handleMessage(conn2, JSON.stringify({ type: 'participant_ready' }));
 
       expect(runtime.getPhase()).toBe('playing');
       expect(hooks.calls.filter((c) => c.method === 'onSessionStart')).toHaveLength(1);
@@ -230,7 +232,7 @@ describe('SessionRuntime', () => {
       expect(runtime.getPhase()).toBe('waiting');
 
       // Human ready
-      runtime.handleMessage(conn2, JSON.stringify({ type: 'player_ready' }));
+      runtime.handleMessage(conn2, JSON.stringify({ type: 'participant_ready' }));
       expect(runtime.getPhase()).toBe('playing');
     });
 
@@ -305,8 +307,8 @@ describe('SessionRuntime', () => {
       // Setup: both connected and session started
       runtime.handleConnection(conn1);
       runtime.handleConnection(conn2);
-      runtime.handleMessage(conn1, JSON.stringify({ type: 'player_ready' }));
-      runtime.handleMessage(conn2, JSON.stringify({ type: 'player_ready' }));
+      runtime.handleMessage(conn1, JSON.stringify({ type: 'participant_ready' }));
+      runtime.handleMessage(conn2, JSON.stringify({ type: 'participant_ready' }));
 
       // End the session
       runtime.endSession('participant-1', 1, 'test');
@@ -358,7 +360,7 @@ describe('SessionRuntime', () => {
       const messages1 = conn1.sentMessages.map((s) => JSON.parse(s) as TestMessage);
       const resetMsg = messages1.find((m) => m.type === 'session_reset');
       expect(resetMsg).toBeDefined();
-      expect(resetMsg?.resetData).toBe('fresh');
+      expect((resetMsg as { appData?: { resetData?: string } }).appData?.resetData).toBe('fresh');
     });
 
     it('should reset participant ready states on reset (except bots)', () => {
@@ -371,9 +373,9 @@ describe('SessionRuntime', () => {
       freshRuntime.handleConnection(c1);
       freshRuntime.handleConnection(c2);
       freshRuntime.handleMessage(c1, JSON.stringify({ type: 'bot_identify' }));
-      freshRuntime.handleMessage(c2, JSON.stringify({ type: 'player_ready' }));
+      freshRuntime.handleMessage(c2, JSON.stringify({ type: 'participant_ready' }));
 
-      freshRuntime.endSession('participant-1', 1, 'test');
+      freshRuntime.endSession('participant-1', 1, 'app_condition');
       freshRuntime.handleMessage(c1, JSON.stringify({ type: 'play_again_vote' }));
       freshRuntime.handleMessage(c2, JSON.stringify({ type: 'play_again_vote' }));
 

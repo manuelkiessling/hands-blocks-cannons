@@ -5,10 +5,12 @@
  * with another participant via WebSocket.
  */
 
+import { resolveSessionConfig, SessionClient } from '@gesture-app/framework-client';
 import type { ParticipantId } from '@gesture-app/framework-protocol';
 import type {
   ClientMessage,
   HandState,
+  HelloHandsResetData,
   HelloHandsWelcomeData,
   ServerMessage,
 } from '../src/shared/protocol.js';
@@ -61,7 +63,6 @@ interface LocalHandState extends HandState {
 }
 
 interface AppState {
-  ws: WebSocket | null;
   handTracker: HandTracker | null;
   participantId: ParticipantId | null;
   participantNumber: 1 | 2 | null;
@@ -76,7 +77,6 @@ interface AppState {
 }
 
 const state: AppState = {
-  ws: null,
   handTracker: null,
   participantId: null,
   participantNumber: null,
@@ -93,6 +93,25 @@ const state: AppState = {
 // Throttle hand updates to avoid flooding the server
 const HAND_UPDATE_THROTTLE_MS = 50;
 let lastHandUpdateTime = 0;
+
+// Session client (framework-managed WebSocket)
+const sessionClient = new SessionClient<
+  ClientMessage,
+  ServerMessage,
+  HelloHandsWelcomeData,
+  undefined,
+  HelloHandsResetData
+>({
+  onConnectionStateChange: handleConnectionStateChange,
+  onSessionJoin: handleSessionJoin,
+  onOpponentJoined: handleOpponentJoined,
+  onOpponentLeft: handleOpponentLeft,
+  onSessionStart: handleSessionStart,
+  onSessionEnd: handleSessionEnd,
+  onSessionReset: handleSessionReset,
+  onAppMessage: handleAppMessage,
+  onError: handleError,
+});
 
 // ============ Initialization ============
 
@@ -122,30 +141,19 @@ function resizeCanvas(): void {
 // ============ Connection ============
 
 async function tryAutoConnect(): Promise<void> {
-  try {
-    const response = await fetch('/session.json');
-    if (response.ok) {
-      const config = await response.json();
-      if (config.wsUrl) {
-        connect(config.wsUrl);
-        if (config.lobbyUrl) {
-          lobbyLink.href = config.lobbyUrl;
-        }
-        return;
-      }
+  const configResult = await resolveSessionConfig();
+  if (configResult.mode === 'session') {
+    const { wsUrl, lobbyUrl } = configResult.config;
+    if (lobbyUrl) {
+      lobbyLink.href = lobbyUrl;
     }
-  } catch {
-    // Ignore fetch errors
+    connect(wsUrl);
+    return;
   }
 
   // Local development mode
-  if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-    connectionStatus.textContent = 'Local development mode';
-    manualConnect.style.display = 'flex';
-  } else {
-    const wsUrl = `wss://${location.host}/ws`;
-    connect(wsUrl);
-  }
+  connectionStatus.textContent = 'Local development mode';
+  manualConnect.style.display = 'flex';
 }
 
 function handleManualConnect(): void {
@@ -159,33 +167,11 @@ function connect(url: string): void {
   connectionStatus.textContent = `Connecting to ${url}...`;
   manualConnect.style.display = 'none';
 
-  state.ws = new WebSocket(url);
-
-  state.ws.onopen = () => {
-    connectionStatus.textContent = 'Connected! Requesting camera access...';
-  };
-
-  state.ws.onmessage = (event) => {
-    handleMessage(JSON.parse(event.data));
-  };
-
-  state.ws.onclose = () => {
-    connectionStatus.textContent = 'Disconnected';
-    manualConnect.style.display = 'flex';
-    state.phase = 'connecting';
-    showOverlay('connection');
-  };
-
-  state.ws.onerror = () => {
-    connectionStatus.textContent = 'Connection failed';
-    manualConnect.style.display = 'flex';
-  };
+  sessionClient.connect(url);
 }
 
 function send(message: ClientMessage): void {
-  if (state.ws?.readyState === WebSocket.OPEN) {
-    state.ws.send(JSON.stringify(message));
-  }
+  sessionClient.sendAppMessage(message);
 }
 
 // ============ Camera & Hand Tracking ============
@@ -340,108 +326,119 @@ function drawCameraPreview(hand: TrackerHandState | null): void {
 
 // ============ Message Handling ============
 
-function handleMessage(message: ServerMessage | { type: string; [key: string]: unknown }): void {
-  switch (message.type) {
-    case 'welcome':
-      handleWelcome(
-        message as ServerMessage &
-          HelloHandsWelcomeData & {
-            participantId: ParticipantId;
-            participantNumber: 1 | 2;
-            sessionPhase: string;
-          }
-      );
+function handleConnectionStateChange(
+  connectionState: 'disconnected' | 'connecting' | 'connected' | 'error'
+): void {
+  switch (connectionState) {
+    case 'connecting':
+      connectionStatus.textContent = 'Connecting...';
       break;
-
-    case 'opponent_joined':
-      state.hasOpponent = true;
-      if (state.phase === 'waiting') {
-        state.phase = 'ready';
-        showOverlay('ready');
-        // If hand is already raised, send ready immediately
-        if (state.myHandState?.isRaised && !state.isHandRaised) {
-          state.isHandRaised = true;
-          sendReady();
-        }
-      }
+    case 'connected':
+      connectionStatus.textContent = 'Connected! Requesting camera access...';
       break;
-
-    case 'opponent_left':
-      state.hasOpponent = false;
-      state.friendHandState = null;
-      if (state.phase === 'playing' || state.phase === 'ready') {
-        state.phase = 'waiting';
-        showOverlay('waiting');
-      }
+    case 'disconnected':
+      connectionStatus.textContent = 'Disconnected';
+      manualConnect.style.display = 'flex';
+      state.phase = 'connecting';
+      showOverlay('connection');
       break;
-
-    case 'session_started':
-      state.phase = 'playing';
-      showOverlay(null);
-      controls.style.display = 'flex';
-      lobbyLink.style.display = 'block';
-      break;
-
-    case 'hand_broadcast':
-      if ('handState' in message) {
-        state.friendHandState = message.handState as HandState;
-      }
-      break;
-
-    case 'wave_broadcast':
-      showWaveNotification();
-      break;
-
-    case 'session_ended':
-      state.phase = 'finished';
-      break;
-
-    case 'session_reset':
-      state.phase = 'ready';
-      state.friendHandState = null;
-      state.isHandRaised = false;
-      showOverlay('ready');
-      break;
-
     case 'error':
-      console.error('Server error:', message);
+      connectionStatus.textContent = 'Connection error';
+      manualConnect.style.display = 'flex';
       break;
   }
 }
 
-function handleWelcome(message: {
+function handleSessionJoin(data: {
   participantId: ParticipantId;
   participantNumber: 1 | 2;
   sessionPhase: string;
-  color: number;
-  opponentColor?: number;
+  appData: HelloHandsWelcomeData;
 }): void {
-  state.participantId = message.participantId;
-  state.participantNumber = message.participantNumber;
-  state.myColor = message.color;
+  state.participantId = data.participantId;
+  state.participantNumber = data.participantNumber;
+  state.myColor = data.appData.color;
 
-  if (message.opponentColor) {
-    state.friendColor = message.opponentColor;
+  if (data.appData.opponentColor) {
+    state.friendColor = data.appData.opponentColor;
     state.hasOpponent = true;
   } else {
-    state.friendColor = PARTICIPANT_COLORS[message.participantNumber === 1 ? 2 : 1];
+    state.friendColor = PARTICIPANT_COLORS[data.participantNumber === 1 ? 2 : 1];
   }
 
   // Update color indicators
   myColorIndicator.style.backgroundColor = colorToCSS(state.myColor);
   friendColorIndicator.style.backgroundColor = colorToCSS(state.friendColor);
 
-  participantInfo.textContent = `You are participant ${message.participantNumber}`;
+  participantInfo.textContent = `You are participant ${data.participantNumber}`;
 
   // Show camera permission overlay
   state.phase = 'camera';
   showOverlay('camera');
 }
 
+function handleOpponentJoined(_appData?: unknown): void {
+  state.hasOpponent = true;
+  if (state.phase === 'waiting') {
+    state.phase = 'ready';
+    showOverlay('ready');
+    if (state.myHandState?.isRaised && !state.isHandRaised) {
+      state.isHandRaised = true;
+      sendReady();
+    }
+  }
+}
+
+function handleOpponentLeft(): void {
+  state.hasOpponent = false;
+  state.friendHandState = null;
+  if (state.phase === 'playing' || state.phase === 'ready') {
+    state.phase = 'waiting';
+    showOverlay('waiting');
+  }
+}
+
+function handleSessionStart(): void {
+  state.phase = 'playing';
+  showOverlay(null);
+  controls.style.display = 'flex';
+  lobbyLink.style.display = 'block';
+}
+
+function handleSessionEnd(): void {
+  state.phase = 'finished';
+}
+
+function handleSessionReset(appData?: HelloHandsResetData): void {
+  state.phase = 'ready';
+  state.friendHandState = null;
+  state.isHandRaised = false;
+  if (appData?.message) {
+    readyStatus.textContent = appData.message;
+  }
+  showOverlay('ready');
+}
+
+function handleAppMessage(message: ServerMessage): void {
+  switch (message.type) {
+    case 'hand_broadcast':
+      state.friendHandState = message.handState;
+      break;
+    case 'wave_broadcast':
+      showWaveNotification();
+      break;
+  }
+}
+
+function handleError(message: string): void {
+  console.error('Server error:', message);
+  connectionStatus.textContent = `Error: ${message}`;
+}
+
 // ============ Actions ============
 
 function sendReady(): void {
-  send({ type: 'participant_ready' } as unknown as ClientMessage);
+  sessionClient.sendReady();
   readyStatus.textContent = 'You raised your hand! Waiting for friend...';
 }
 
@@ -450,7 +447,7 @@ function handleWave(): void {
   if (now - state.lastWaveTime < 1000) return; // Debounce waves
   state.lastWaveTime = now;
 
-  send({ type: 'wave' });
+  sessionClient.sendAppMessage({ type: 'wave' });
 
   // Animate button
   waveBtn.style.transform = 'scale(1.2)';
