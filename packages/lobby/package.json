@@ -2,7 +2,7 @@
   "name": "@gesture-app/lobby",
   "version": "1.0.0",
   "type": "module",
-  "description": "Game lobby for creating and managing gesture app sessions",
+  "description": "Lobby for creating and managing gesture app sessions",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
