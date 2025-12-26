@@ -57,6 +57,7 @@ export const APP_MANIFEST: AppManifest = {
   version: APP_VERSION,
   description: 'A two-participant demo app',
   tags: ['demo'],
+  supportsBot: false, // true if app has bot/AI opponent
 };
 
 export function registerApp(): void {

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hands, Blocks & Cannons - Game Lobby</title>
+    <title>Gesture Apps Lobby</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -12,13 +12,29 @@
 <body>
     <div class="container">
         <header>
-            <h1>Hands, Blocks & Cannons</h1>
-            <p class="tagline">Control blocks with your hands. Defend with cannons. Destroy your opponent.</p>
+            <h1>Gesture Apps</h1>
+            <p class="tagline">Hand-tracking applications powered by your webcam</p>
         </header>
 
         <main id="main-content">
-            <!-- Start Screen -->
-            <section id="start-screen" class="screen active">
+            <!-- App Selection Screen -->
+            <section id="app-select-screen" class="screen active">
+                <h2>Select an Application</h2>
+                <div id="app-grid" class="app-grid">
+                    <!-- Apps will be rendered dynamically -->
+                    <div class="loader">
+                        <div class="spinner"></div>
+                        <p>Loading applications...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Mode Selection Screen (formerly Start Screen) -->
+            <section id="start-screen" class="screen">
+                <div class="selected-app-header">
+                    <button class="btn-back" id="back-to-apps" title="Back to applications">← Back</button>
+                    <h2 id="selected-app-name">Application Name</h2>
+                </div>
                 <div class="game-modes">
                     <button class="mode-btn" id="play-bot">
                         <span class="mode-icon">🤖</span>
@@ -49,7 +65,7 @@
                 </div>
                 <div class="button-group">
                     <button class="btn secondary" id="back-from-bot">Back</button>
-                    <button class="btn primary" id="start-bot-game">Start Game</button>
+                    <button class="btn primary" id="start-bot-game">Start</button>
                 </div>
             </section>
 
@@ -57,13 +73,13 @@
             <section id="loading-screen" class="screen">
                 <div class="loader">
                     <div class="spinner"></div>
-                    <p id="loading-text">Creating game session...</p>
+                    <p id="loading-text">Creating session...</p>
                 </div>
             </section>
 
             <!-- Game Ready Screen -->
             <section id="game-ready" class="screen">
-                <h2>Game Ready!</h2>
+                <h2>Ready!</h2>
                 <div id="share-section" class="share-section hidden">
                     <p>Share this link with your opponent:</p>
                     <div class="share-url">
@@ -74,7 +90,7 @@
                 </div>
                 <div class="button-group">
                     <button class="btn secondary" id="cancel-game">Cancel</button>
-                    <button class="btn primary" id="join-game">Join Game</button>
+                    <button class="btn primary" id="join-game">Join</button>
                 </div>
             </section>
 
@@ -90,11 +106,10 @@
         </main>
 
         <footer>
-            <p>Use your webcam and hand gestures to control the game. Pinch to grab blocks!</p>
+            <p>Use your webcam and hand gestures to interact. Your video stays on your device.</p>
         </footer>
     </div>
 
     <script type="module" src="./main.ts"></script>
 </body>
 </html>
-

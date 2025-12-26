@@ -69,8 +69,10 @@ These images are used by the lobby to spawn game containers:
 ```bash
 # Build from repo root:
 docker build -t blocks-cannons-game-session -f packages/applications/blocks-cannons/docker/Dockerfile .
-docker build -t hello-hands-game-session   -f packages/applications/hello-hands/docker/Dockerfile .
+docker build -t hello-hands-game-session    -f packages/applications/hello-hands/docker/Dockerfile .
 ```
+
+> **Note:** The lobby container also includes these app packages (for app registry/manifest data), but the game session images are separate containers spawned at runtime.
 
 ### 5. Start the Lobby
 
@@ -166,12 +168,15 @@ cd /var/www/gestures-apps
 # Pull latest code
 git pull
 
-# Rebuild game session image
+# Rebuild game session images
 docker build -t blocks-cannons-game-session -f packages/applications/blocks-cannons/docker/Dockerfile .
+docker build -t hello-hands-game-session   -f packages/applications/hello-hands/docker/Dockerfile .
 
-# Rebuild and restart lobby
+# Rebuild and restart lobby (this also rebuilds all workspace dependencies)
 docker compose up --build -d
 ```
+
+> **Note:** The lobby container build includes `@gesture-app/framework-protocol` and all app packages (`@gesture-app/blocks-cannons`, `@gesture-app/hello-hands`) as workspace dependencies. The Dockerfile builds these from source during the Docker build process.
 
 ## Verification Checklist
 

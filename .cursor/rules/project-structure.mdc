@@ -39,9 +39,19 @@ cam-gesture-experiment/
 │   ├── applications/
 │   │   ├── blocks-cannons  # Game app (server/client/bot)
 │   │   └── hello-hands     # Demo app
-│   └── lobby        # Lobby service (session creation, docker spawning)
+│   └── lobby        # Lobby service (app-agnostic, session creation, docker spawning)
 └── package.json      # Workspace root
 ```
+
+## Lobby Architecture
+
+The lobby is **app-agnostic** and dynamically discovers registered applications:
+
+- Apps self-register with `globalRegistry` when imported (via their `src/index.ts`)
+- The lobby imports all apps in `packages/lobby/src/index.ts` to trigger registration
+- The frontend fetches available apps from `/api/sessions/apps` and renders them dynamically
+- Adding a new app requires only: (1) import in lobby's index.ts, (2) dependency in lobby's package.json
+- No lobby frontend code changes are needed when adding new applications
 
 ## Package Dependencies
 

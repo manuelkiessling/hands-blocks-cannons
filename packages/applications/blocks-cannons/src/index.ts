@@ -22,6 +22,7 @@ export const APP_MANIFEST: AppManifest = {
   version: '1.0.0',
   description: 'A two-player competitive hand-gesture game',
   tags: ['game', 'competitive', 'multiplayer'],
+  supportsBot: true,
 } as const;
 
 /**

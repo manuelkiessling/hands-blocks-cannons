@@ -29,6 +29,9 @@ export interface AppManifest {
 
   /** Optional tags for categorization */
   readonly tags?: readonly string[];
+
+  /** Whether this app supports playing against a bot. Defaults to false. */
+  readonly supportsBot?: boolean;
 }
 
 /**
@@ -97,6 +100,10 @@ export function validateManifest(manifest: unknown): asserts manifest is AppMani
         throw new InvalidManifestError('tags must be an array of strings');
       }
     }
+  }
+
+  if (m['supportsBot'] !== undefined && typeof m['supportsBot'] !== 'boolean') {
+    throw new InvalidManifestError('supportsBot must be a boolean');
   }
 }
 

@@ -11,4 +11,4 @@ rsync \
   --exclude dist/ \
   --delete \
   "$SCRIPT_FOLDER"/../ \
-  www-data@152.53.168.103:/var/www/prod/hands-blocks-cannons/
+  www-data@152.53.168.103:/var/www/prod/gestures-apps/

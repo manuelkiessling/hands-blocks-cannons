@@ -1,15 +1,34 @@
 /**
  * Lobby frontend application.
+ * Allows users to select an application and start a session.
  */
 
+/** Application manifest from the registry */
+interface AppManifest {
+  id: string;
+  name: string;
+  version: string;
+  description?: string;
+  tags?: readonly string[];
+  supportsBot?: boolean;
+}
+
+/** Response from fetching available apps */
+interface AppsResponse {
+  apps: AppManifest[];
+}
+
+/** Response from creating a session */
 interface CreateSessionResponse {
   sessionId: string;
+  appId: string;
   gameUrl: string;
   joinUrl: string | null;
 }
 
 // Screen management
 const screens = {
+  appSelect: document.getElementById('app-select-screen'),
   start: document.getElementById('start-screen'),
   botSettings: document.getElementById('bot-settings'),
   loading: document.getElementById('loading-screen'),
@@ -26,9 +45,14 @@ function showScreen(screenId: keyof typeof screens): void {
 }
 
 // State
+let availableApps: AppManifest[] = [];
+let selectedApp: AppManifest | null = null;
 let currentSession: CreateSessionResponse | null = null;
 
 // Elements
+const appGrid = document.getElementById('app-grid');
+const selectedAppName = document.getElementById('selected-app-name');
+const backToAppsBtn = document.getElementById('back-to-apps');
 const playBotBtn = document.getElementById('play-bot');
 const playHumanBtn = document.getElementById('play-human');
 const backFromBotBtn = document.getElementById('back-from-bot');
@@ -44,14 +68,24 @@ const errorMessage = document.getElementById('error-message');
 const tryAgainBtn = document.getElementById('try-again');
 
 // API functions
+async function fetchApps(): Promise<AppManifest[]> {
+  const response = await fetch('/api/sessions/apps');
+  if (!response.ok) {
+    throw new Error('Failed to fetch applications');
+  }
+  const data: AppsResponse = await response.json();
+  return data.apps;
+}
+
 async function createSession(
+  appId: string,
   opponentType: 'bot' | 'human',
   botDifficulty?: number
 ): Promise<CreateSessionResponse> {
   const response = await fetch('/api/sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ opponentType, botDifficulty }),
+    body: JSON.stringify({ appId, opponentType, botDifficulty }),
   });
 
   if (!response.ok) {
@@ -66,13 +100,75 @@ async function deleteSession(sessionId: string): Promise<void> {
   await fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' });
 }
 
+// Render functions
+function renderAppCards(apps: AppManifest[]): void {
+  if (!appGrid) return;
+
+  if (apps.length === 0) {
+    appGrid.innerHTML = `
+      <div class="no-apps">
+        <p>No applications available</p>
+      </div>
+    `;
+    return;
+  }
+
+  appGrid.innerHTML = apps
+    .map(
+      (app) => `
+      <button class="app-card" data-app-id="${app.id}">
+        <span class="app-name">${app.name}</span>
+        ${app.description ? `<span class="app-desc">${app.description}</span>` : ''}
+        ${
+          app.tags && app.tags.length > 0
+            ? `<div class="app-tags">${app.tags.map((tag) => `<span class="tag">${tag}</span>`).join('')}</div>`
+            : ''
+        }
+      </button>
+    `
+    )
+    .join('');
+
+  // Add click listeners to app cards
+  for (const card of appGrid.querySelectorAll('.app-card')) {
+    card.addEventListener('click', () => {
+      const appId = card.getAttribute('data-app-id');
+      const app = apps.find((a) => a.id === appId);
+      if (app) {
+        handleSelectApp(app);
+      }
+    });
+  }
+}
+
 // Event handlers
+function handleSelectApp(app: AppManifest): void {
+  selectedApp = app;
+  if (selectedAppName) {
+    selectedAppName.textContent = app.name;
+  }
+  // Show/hide bot button based on app support
+  if (playBotBtn) {
+    if (app.supportsBot) {
+      playBotBtn.classList.remove('hidden');
+    } else {
+      playBotBtn.classList.add('hidden');
+    }
+  }
+  showScreen('start');
+}
+
+function handleBackToApps(): void {
+  selectedApp = null;
+  showScreen('appSelect');
+}
+
 function handlePlayBot(): void {
   showScreen('botSettings');
 }
 
 function handlePlayHuman(): void {
-  startGame('human');
+  startSession('human');
 }
 
 function handleBackFromBot(): void {
@@ -81,20 +177,25 @@ function handleBackFromBot(): void {
 
 function handleStartBotGame(): void {
   const difficulty = difficultySlider ? Number(difficultySlider.value) / 100 : 0.5;
-  startGame('bot', difficulty);
+  startSession('bot', difficulty);
 }
 
 // Countdown duration in seconds before Join button is enabled
 const CONTAINER_READY_DELAY_SECONDS = 4;
 
-async function startGame(opponentType: 'bot' | 'human', botDifficulty?: number): Promise<void> {
+async function startSession(opponentType: 'bot' | 'human', botDifficulty?: number): Promise<void> {
+  if (!selectedApp) {
+    showError('No application selected');
+    return;
+  }
+
   showScreen('loading');
   if (loadingText) {
-    loadingText.textContent = 'Creating game session...';
+    loadingText.textContent = 'Creating session...';
   }
 
   try {
-    currentSession = await createSession(opponentType, botDifficulty);
+    currentSession = await createSession(selectedApp.id, opponentType, botDifficulty);
 
     // Show game ready screen
     showScreen('gameReady');
@@ -137,7 +238,7 @@ function startJoinCountdown(): void {
       clearInterval(countdownInterval);
       if (joinGameBtn) {
         joinGameBtn.removeAttribute('disabled');
-        joinGameBtn.textContent = 'Join Game';
+        joinGameBtn.textContent = 'Join';
       }
     } else {
       updateButtonText();
@@ -186,10 +287,15 @@ function showError(message: string): void {
 
 function handleTryAgain(): void {
   currentSession = null;
-  showScreen('start');
+  if (selectedApp) {
+    showScreen('start');
+  } else {
+    showScreen('appSelect');
+  }
 }
 
 // Attach event listeners
+backToAppsBtn?.addEventListener('click', handleBackToApps);
 playBotBtn?.addEventListener('click', handlePlayBot);
 playHumanBtn?.addEventListener('click', handlePlayHuman);
 backFromBotBtn?.addEventListener('click', handleBackFromBot);
@@ -200,4 +306,23 @@ joinGameBtn?.addEventListener('click', handleJoinGame);
 tryAgainBtn?.addEventListener('click', handleTryAgain);
 
 // Initialize
-showScreen('start');
+async function init(): Promise<void> {
+  showScreen('appSelect');
+
+  try {
+    availableApps = await fetchApps();
+    renderAppCards(availableApps);
+  } catch (err) {
+    if (appGrid) {
+      appGrid.innerHTML = `
+        <div class="error-content">
+          <span class="error-icon">⚠️</span>
+          <p>Failed to load applications</p>
+          <button class="btn primary" onclick="location.reload()">Retry</button>
+        </div>
+      `;
+    }
+  }
+}
+
+init();

@@ -281,6 +281,7 @@ export const APP_MANIFEST: AppManifest = {
   version: APP_VERSION,
   description: 'A two-participant demo app',
   tags: ['demo'],
+  supportsBot: false, // Set to true if your app has bot/AI opponent support
 };
 
 /**
@@ -659,16 +660,19 @@ init();
 
 ### Step 7: Register in the Lobby
 
-Add your app to `packages/lobby/src/index.ts`:
+The lobby is app-agnostic and dynamically discovers registered apps. To make your app appear in the lobby:
+
+1. **Add the import** to `packages/lobby/src/index.ts`:
 
 ```typescript
-// Import apps to register them
+// Import apps to register them with the global registry
+// Each app auto-registers when imported
 import '@gesture-app/blocks-cannons';
 import '@gesture-app/hello-hands';
 import '@gesture-app/my-app';  // Add this line
 ```
 
-And add the dependency to `packages/lobby/package.json`:
+2. **Add the dependency** to `packages/lobby/package.json`:
 
 ```json
 {
@@ -677,6 +681,16 @@ And add the dependency to `packages/lobby/package.json`:
   }
 }
 ```
+
+**How it works:**
+
+- When the lobby server starts, it imports your app package
+- Your app's `src/index.ts` auto-registers with `globalRegistry` on import
+- The lobby's `/api/sessions/apps` endpoint returns all registered apps
+- The lobby frontend fetches this list and displays app cards for users to select
+- No frontend code changes are needed in the lobby - it's fully dynamic
+
+Your app will appear in the lobby with its `name`, `description`, and `tags` from the `AppManifest`.
 
 ### Step 8: Create Docker Configuration
 

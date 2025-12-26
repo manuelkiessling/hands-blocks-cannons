@@ -28,6 +28,7 @@ export const APP_MANIFEST: AppManifest = {
   version: APP_VERSION,
   description: 'A minimal two-participant hand tracking demo - wave hello to your friend!',
   tags: ['demo', 'minimal', 'hands'],
+  supportsBot: false,
 };
 
 /**
