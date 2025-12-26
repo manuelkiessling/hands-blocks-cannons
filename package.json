@@ -15,10 +15,12 @@
     "build:blocks-cannons": "npm run build -w @gesture-app/blocks-cannons",
     "build:framework": "npm run build:framework-protocol && npm run build -w @gesture-app/framework-server && npm run build -w @gesture-app/framework-client",
     "build:deps": "npm run build:framework-protocol && npm run build:blocks-cannons",
+    "build:clients": "npm run build:client -w @gesture-app/blocks-cannons && npm run build:client -w @gesture-app/hello-hands",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "check": "npm run check --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "validate": "npm run build:deps && npm run check && npm run typecheck && npm run test"
+    "test:clients": "npm run test:client --workspaces --if-present",
+    "validate": "npm run build:deps && npm run build:clients && npm run check && npm run typecheck && npm run test && npm run test:clients"
   },
   "engines": {
     "node": ">=24.0.0"

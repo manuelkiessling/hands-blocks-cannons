@@ -6,6 +6,7 @@ import { viteStaticCopy } from 'vite-plugin-static-copy';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
+  root: __dirname, // Set root to client directory (config is in client/)
   base: './',
   build: {
     outDir: '../dist/client',
