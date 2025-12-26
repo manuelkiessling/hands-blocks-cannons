@@ -173,7 +173,7 @@ export const PARTICIPANT_COLORS: Record<ParticipantNumber, number> = {
 };
 ```
 
-### Step 2: Define Protocol Messages
+### Step 2: Define Protocol Messages (app-only)
 
 Create `src/shared/protocol.ts` with message types and Zod schemas:
 
@@ -195,7 +195,7 @@ export const Position2DSchema = z.object({
   y: z.number(),
 });
 
-// ============ Client → Server Messages ============
+// ============ Client → Server (app) Messages ============
 
 /** Client sends position update */
 export interface PositionUpdateMessage {
@@ -210,10 +210,7 @@ export const PositionUpdateMessageSchema = z.object({
 
 /** Union of all client messages */
 export type ClientMessage = PositionUpdateMessage;
-
-export const ClientMessageSchema = z.discriminatedUnion('type', [
-  PositionUpdateMessageSchema,
-]);
+export const ClientMessageSchema = z.discriminatedUnion('type', [PositionUpdateMessageSchema]);
 
 /** Parse and validate a client message */
 export function parseClientMessage(data: unknown): ClientMessage | null {
@@ -221,7 +218,7 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
   return result.success ? result.data : null;
 }
 
-// ============ Server → Client Messages ============
+// ============ Server → Client (app) Messages ============
 
 /** Server broadcasts position update */
 export interface PositionBroadcastMessage {
@@ -238,11 +235,6 @@ export interface ScoreUpdateMessage {
 
 /** Union of all server messages */
 export type ServerMessage = PositionBroadcastMessage | ScoreUpdateMessage;
-
-/** Serialize a server message */
-export function serializeServerMessage(message: ServerMessage): string {
-  return JSON.stringify(message);
-}
 
 // ============ Welcome/Reset Data ============
 
@@ -309,7 +301,7 @@ registerApp();
 export * from './shared/index.js';
 ```
 
-### Step 4: Implement Server AppHooks
+### Step 4: Implement Server AppHooks (SessionRuntime)
 
 Create `src/server/MyAppSession.ts` implementing the `AppHooks` interface:
 
@@ -323,12 +315,7 @@ import type {
   ParticipantNumber,
   SessionPhase,
 } from '@gesture-app/framework-protocol';
-import type {
-  AppHooks,
-  MessageResponse,
-  Participant,
-  SessionRuntimeConfig,
-} from '@gesture-app/framework-server';
+import type { AppHooks, MessageResponse, Participant, SessionRuntimeConfig } from '@gesture-app/framework-server';
 import type {
   ClientMessage,
   ServerMessage,
@@ -411,13 +398,9 @@ export function createMyAppConfig(): SessionRuntimeConfig {
   };
 }
 
-/** Message serialization */
-export function serializeMessage(message: ServerMessage): string {
-  return JSON.stringify(message);
-}
-
-/** Message parsing */
-export function parseMessage(data: string): ClientMessage | null {
+/** Simple JSON helpers for app messages */
+export const serializeAppMessage = (message: ServerMessage) => JSON.stringify(message);
+export const parseAppMessage = (data: string): ClientMessage | null => {
   try {
     const parsed = JSON.parse(data);
     if (typeof parsed === 'object' && parsed !== null && typeof parsed.type === 'string') {
@@ -427,12 +410,12 @@ export function parseMessage(data: string): ClientMessage | null {
   } catch {
     return null;
   }
-}
+};
 ```
 
 ### Step 5: Create the Standalone Server
 
-Create `src/server/server.ts`:
+Create `src/server/server.ts` (uses the framework SessionRuntime and treats your app protocol as app-only; framework lifecycle messages are handled for you):
 
 ```typescript
 /**
@@ -450,8 +433,8 @@ import type {
 import {
   MyAppHooks,
   createMyAppConfig,
-  serializeMessage,
-  parseMessage,
+  serializeAppMessage,
+  parseAppMessage,
 } from './MyAppSession.js';
 
 // biome-ignore lint/complexity/useLiteralKeys: Required for noPropertyAccessFromIndexSignature
@@ -467,7 +450,7 @@ const runtime = new SessionRuntime<
   ServerMessage,
   MyAppWelcomeData,
   MyAppResetData
->(config, hooks, serializeMessage, parseMessage);
+>(config, hooks, (msg) => JSON.stringify(msg), parseAppMessage);
 
 const wss = new WebSocketServer({ port: PORT });
 
@@ -482,7 +465,7 @@ wss.on('connection', (ws: WebSocket) => {
   }
 
   ws.on('message', (data: Buffer) => {
-    runtime.handleMessage(ws, data.toString());
+  runtime.handleMessage(ws, data.toString());
   });
 
   ws.on('close', () => {
@@ -916,41 +899,31 @@ Understanding the session lifecycle helps you build the right UX:
 
 ## SessionClient (Framework Client)
 
-For clients that need to resolve session configuration (WebSocket URL, lobby URL, etc.), use `SessionClient` from `@gesture-app/framework-client`:
+Use `SessionClient` from `@gesture-app/framework-client` plus `resolveSessionConfig` to resolve the WebSocket URL and lobby return URL at runtime. The framework handles lifecycle messages; your app only handles app messages.
 
 ```typescript
 import {
   resolveSessionConfig,
   SessionClient,
-  type SessionClientConfig,
+  type SessionClientEvents,
 } from '@gesture-app/framework-client';
+import type { ClientMessage, ServerMessage, MyAppWelcomeData } from '../src/shared/protocol.js';
 
-// Resolve configuration (checks window.__SESSION_CONFIG__, /session.json, or falls back to local dev)
+const client = new SessionClient<ClientMessage, ServerMessage, MyAppWelcomeData>({
+  onSessionJoin: ({ appData }) => console.log('Welcome data', appData),
+  onSessionStart: () => console.log('Started'),
+  onSessionEnd: (winnerId, winnerNumber, reason, appData) =>
+    console.log('Ended', winnerId, winnerNumber, reason, appData),
+  onSessionReset: (appData) => console.log('Reset', appData),
+  onAppMessage: (msg) => console.log('App message', msg),
+});
+
 const config = await resolveSessionConfig();
-
-if (config.mode === 'injected' || config.mode === 'fetched') {
-  // Production: use the resolved WebSocket URL
-  connect(config.config.wsUrl);
+if (config.mode === 'session') {
+  client.connect(config.config.wsUrl);
 } else {
-  // Local development: show manual connect UI
-  showManualConnectForm();
+  // local dev: show manual connect UI
 }
-```
-
-The `SessionClient` class provides a higher-level abstraction with lifecycle events:
-
-```typescript
-const clientConfig: SessionClientConfig = {
-  wsUrl: 'ws://localhost:8080',
-  // Optional callbacks for lifecycle events
-  onWelcome: (data) => console.log('Welcome!', data),
-  onOpponentJoined: () => console.log('Opponent joined!'),
-  onSessionStarted: () => console.log('Game started!'),
-  onSessionEnded: (winner) => console.log('Winner:', winner),
-};
-
-const client = new SessionClient(clientConfig);
-client.connect();
 ```
 
 ## Message Routing

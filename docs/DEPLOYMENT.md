@@ -62,13 +62,14 @@ docker network ls | grep outermost_router
 docker network create outermost_router
 ```
 
-### 4. Build the Game Session Image
+### 4. Build the Game Session Images
 
-This image is used by the lobby to spawn game containers:
+These images are used by the lobby to spawn game containers:
 
 ```bash
 # Build from repo root:
 docker build -t blocks-cannons-game-session -f packages/applications/blocks-cannons/docker/Dockerfile .
+docker build -t hello-hands-game-session   -f packages/applications/hello-hands/docker/Dockerfile .
 ```
 
 ### 5. Start the Lobby

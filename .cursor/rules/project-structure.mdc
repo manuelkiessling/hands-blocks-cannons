@@ -5,7 +5,7 @@ globs: ["**/*.ts", "**/*.tsx", "**/package.json"]
 
 # Project Structure
 
-This is an **npm workspaces monorepo** with three packages.
+This is an **npm workspaces monorepo** with a framework, apps, and a lobby.
 
 ## Node.js Version
 
@@ -30,9 +30,14 @@ cam-gesture-experiment/
 ├── .nvmrc            # Node version (nvm)
 ├── .tool-versions    # Node version (mise)
 ├── packages/
-│   ├── shared/       # @block-game/shared - Types, protocol, constants
-│   ├── server/       # @block-game/server - WebSocket game server
-│   └── client/       # @block-game/client - Vite + TypeScript client
+│   ├── framework/
+│   │   ├── protocol  # @gesture-app/framework-protocol (schemas/types)
+│   │   ├── server    # @gesture-app/framework-server (SessionRuntime)
+│   │   └── client    # @gesture-app/framework-client (SessionClient + config)
+│   ├── applications/
+│   │   ├── blocks-cannons  # Game app (server/client/bot)
+│   │   └── hello-hands     # Demo app
+│   └── lobby        # Lobby service (session creation, docker spawning)
 └── package.json      # Workspace root
 ```
 
@@ -40,12 +45,18 @@ cam-gesture-experiment/
 
 ```mermaid
 graph TD
-    Server["@block-game/server"]
-    Client["@block-game/client"]
-    Shared["@block-game/shared"]
-    
-    Server --> Shared
-    Client --> Shared
+    Protocol["@gesture-app/framework-protocol"]
+    Server["@gesture-app/framework-server"]
+    Client["@gesture-app/framework-client"]
+    App1["@gesture-app/blocks-cannons"]
+    App2["@gesture-app/hello-hands"]
+    Lobby["@gesture-app/lobby"]
+
+    Server --> Protocol
+    Client --> Protocol
+    App1 --> Protocol
+    App2 --> Protocol
+    Lobby --> Protocol
 ```
 
 ## Key Commands
@@ -53,24 +64,13 @@ graph TD
 Run from workspace root (after `nvm use`):
 
 ```bash
-# Build shared package first (required before other builds)
-npm run build:shared
-
-# Typecheck all packages
-npm run typecheck
-
-# Run all tests
-npm run test
-
 # Full validation (build + typecheck + test)
 npm run validate
 
-# Development
-npm run dev:server    # Start server with hot reload
-npm run dev:client    # Start Vite dev server
-
-# Run bot
-npm run bot
+# Development (per workspace)
+npm run dev:server -w @gesture-app/blocks-cannons
+npm run dev:client -w @gesture-app/blocks-cannons
+npm run dev -w @gesture-app/lobby
 ```
 
 ## Adding Dependencies
@@ -79,31 +79,33 @@ Always specify the workspace when adding dependencies:
 
 ```bash
 # Add to specific package
-npm install <package> -w @block-game/server
-npm install <package> -w @block-game/client
+npm install <package> -w @gesture-app/framework-server
+npm install <package> -w @gesture-app/framework-client
+npm install <package> -w @gesture-app/framework-protocol
+npm install <package> -w @gesture-app/blocks-cannons
+npm install <package> -w @gesture-app/hello-hands
+npm install <package> -w @gesture-app/lobby
 
 # Add dev dependency
-npm install -D <package> -w @block-game/shared
+npm install -D <package> -w @gesture-app/framework-protocol
 ```
 
 ## Cross-Package Imports
 
-Import from the shared package using the package name:
-
+Import across packages using workspace package names (no relative paths):
 ```typescript
-// In server or client code
-import { Position, Block, ServerMessage } from '@block-game/shared';
-import { parseClientMessage } from '@block-game/shared';
+import { createSessionServerMessageSchema } from '@gesture-app/framework-protocol';
+import { SessionRuntime } from '@gesture-app/framework-server';
+import { SessionClient } from '@gesture-app/framework-client';
+import { BlocksWelcomeData } from '@gesture-app/blocks-cannons';
 ```
-
-Never use relative paths to import across packages.
 
 ## Build Order
 
 When building the full project:
 
-1. `@block-game/shared` must build first
-2. Then `@block-game/server` and `@block-game/client` can build in parallel
+1. `@gesture-app/framework-protocol` must build first
+2. `@gesture-app/framework-server`, `@gesture-app/framework-client`, and applications can build afterward
 
 The root `validate` script handles this automatically.
 

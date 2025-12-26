@@ -7,51 +7,51 @@ todos:
     status: completed
   - id: framework-server-runtime-refactor
     content: Refactor `SessionRuntime` + `AppHooks` to use canonical protocol, remove aliases, add opponent-join payload hook, and handle disconnect during playing with `session_ended`.
-    status: in_progress
+    status: completed
     dependencies:
       - protocol-framework-messages
   - id: framework-client-sessionclient-refactor
     content: Refactor `SessionClient` to canonical protocol (no aliases) and expose typed appData in events.
-    status: in_progress
+    status: completed
     dependencies:
       - protocol-framework-messages
   - id: hello-hands-server-migration
     content: Update hello-hands server hooks/parsing to the new protocol composition helpers.
-    status: pending
+    status: completed
     dependencies:
       - protocol-framework-messages
       - framework-server-runtime-refactor
   - id: hello-hands-client-migration
     content: Replace hello-hands custom WebSocket + config logic with `resolveSessionConfig` + `SessionClient`; update Dockerfile/workspace deps to include `framework-client`.
-    status: pending
+    status: completed
     dependencies:
       - framework-client-sessionclient-refactor
   - id: blocks-cannons-protocol-split
     content: Split blocks-cannons protocol into app messages + appData schemas for welcome/opponent_joined/reset/session_ended; remove lifecycle messages from app protocol.
-    status: pending
+    status: completed
     dependencies:
       - protocol-framework-messages
   - id: blocks-cannons-server-migration
     content: Replace bespoke blocks-cannons server lifecycle with `SessionRuntime` + new hooks; move tick + win logic into hooks; remove custom play-again.
-    status: pending
+    status: completed
     dependencies:
       - blocks-cannons-protocol-split
       - framework-server-runtime-refactor
   - id: blocks-cannons-client-migration
     content: Replace `GameClient` with a `SessionClient`-based adapter; update client to consume welcome/opponent_joined/reset appData and session lifecycle events.
-    status: pending
+    status: completed
     dependencies:
       - blocks-cannons-protocol-split
       - framework-client-sessionclient-refactor
   - id: blocks-cannons-bot-migration
     content: Update bot to consume `welcome.appData` and react to `session_started/session_ended/session_reset` while sending framework client messages.
-    status: pending
+    status: completed
     dependencies:
       - blocks-cannons-protocol-split
       - framework-server-runtime-refactor
   - id: lobby-config-and-manifest-hardening
     content: Centralize lobby infra config and tighten `AppManifest.id` validation for DNS/docker safety; update docs/rules to match new structure.
-    status: pending
+    status: completed
     dependencies:
       - protocol-framework-messages
 ---
