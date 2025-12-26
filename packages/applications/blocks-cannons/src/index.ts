@@ -7,32 +7,49 @@
  * - Fire projectiles from cannons to destroy opponent blocks
  * - Win by destroying all opponent blocks
  *
- * This package will contain the app-specific logic that plugs into
- * the framework runtime. For now it's a placeholder that will be
- * populated as we migrate code from packages/server and packages/client.
+ * This package contains the app-specific logic that plugs into
+ * the framework runtime.
  */
+
+import { type AppManifest, globalRegistry } from '@gesture-app/framework-protocol';
+
+/**
+ * Application manifest for Blocks & Cannons.
+ */
+export const APP_MANIFEST: AppManifest = {
+  id: 'blocks-cannons',
+  name: 'Blocks & Cannons',
+  version: '1.0.0',
+  description: 'A two-player competitive hand-gesture game',
+  tags: ['game', 'competitive', 'multiplayer'],
+} as const;
 
 /**
  * Application identifier.
  */
-export const APP_ID = 'blocks-cannons';
+export const APP_ID = APP_MANIFEST.id;
 
 /**
  * Application display name.
  */
-export const APP_NAME = 'Blocks & Cannons';
+export const APP_NAME = APP_MANIFEST.name;
 
 /**
  * Application version.
  */
-export const APP_VERSION = '1.0.0';
+export const APP_VERSION = APP_MANIFEST.version;
 
 /**
- * Application manifest (placeholder for future registry integration).
+ * Register this application with the global registry.
+ *
+ * Call this at application startup to make the app discoverable
+ * by the framework.
  */
-export const APP_MANIFEST = {
-  id: APP_ID,
-  name: APP_NAME,
-  version: APP_VERSION,
-  description: 'A two-player competitive hand-gesture game',
-} as const;
+export function registerApp(): void {
+  if (!globalRegistry.has(APP_ID)) {
+    globalRegistry.register(APP_MANIFEST);
+  }
+}
+
+// Auto-register when this module is imported
+registerApp();

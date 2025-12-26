@@ -72,3 +72,15 @@ export function isFrameworkMessage(message: { type: string }): boolean {
  * Framework protocol version.
  */
 export const FRAMEWORK_PROTOCOL_VERSION = '1.0.0';
+
+// ============ App Registry ============
+
+export {
+  type AppManifest,
+  AppNotFoundError,
+  AppRegistry,
+  DuplicateAppError,
+  globalRegistry,
+  InvalidManifestError,
+  validateManifest,
+} from './registry.js';

@@ -31,8 +31,8 @@ todos:
     dependencies:
       - portion2-split-shared-with-tests
   - id: portion5-app-registry
-    content: Add application registry + bootstraps and tests ensuring new apps don’t require framework edits.
-    status: pending
+    content: Add application registry + bootstraps and tests ensuring new apps don't require framework edits.
+    status: completed
     dependencies:
       - portion3-framework-server-with-conformance-tests
       - portion4-framework-client-with-tests
@@ -269,6 +269,37 @@ Update:
 
 ---
 
+## Future Cleanup Tasks (Post-Refactor)
+
+Once the refactor is complete and the framework is stable, these backwards-compatibility shims should be removed for a lean, clean codebase:
+
+### Backwards-Compatible Field Names (Framework Protocol)
+
+**Location**: `packages/framework/server/src/SessionRuntime.ts`
+- Accepts both `player_ready` and `participant_ready` message types (line ~218)
+
+**Location**: `packages/framework/client/src/SessionClient.ts`
+- Welcome message: accepts `playerId`/`playerNumber`/`gamePhase` in addition to `participantId`/`participantNumber`/`sessionPhase` (lines ~323-326)
+- Session started: accepts both `game_started` and `session_started` (line ~285-286)
+- Session ended: accepts both `game_over` and `session_ended` (lines ~291-292)
+- Play again status: accepts both `votedPlayerIds`/`totalPlayers` and `votedParticipantIds`/`totalParticipants` (lines ~301-305)
+- Session reset: accepts both `game_reset` and `session_reset` (lines ~309-310)
+
+### Compatibility Re-exports
+
+**Location**: `packages/shared/src/index.ts` and `packages/shared/src/protocol/index.ts`
+- Re-exports from `@gesture-app/blocks-cannons/shared` for backwards compatibility
+- Deprecation notices added; should eventually be removed entirely
+
+### Cleanup Actions
+
+1. Update all consumer code to use new naming (`participant*`, `session*`)
+2. Remove backwards-compat field checks from SessionClient and SessionRuntime
+3. Remove re-exports from `@block-game/shared` once all imports migrated
+4. Update protocol schemas to use only new field names
+
+---
+
 ## Implementation Log
 
 ### Portion 0 — Runtime Session Config (COMPLETED ✓)
@@ -472,4 +503,53 @@ Update:
 
 ---
 
-### Portion 5 — App Registry (NEXT)
+### Portion 5 — App Registry (COMPLETED)
+
+**Started**: 2025-12-26
+**Completed**: 2025-12-26
+
+**Design decisions**:
+
+- **AppManifest interface**: Minimal contract apps implement
+  - Required: `id`, `name`, `version`
+  - Optional: `description`, `tags`
+- **AppRegistry class**: Manages app registration and discovery
+  - `register(manifest)`: Register an app (validates manifest, throws on duplicate)
+  - `get(appId)`: Get manifest or throw `AppNotFoundError`
+  - `tryGet(appId)`: Get manifest or undefined
+  - `has(appId)`: Check if app exists
+  - `listIds()`, `listAll()`: Enumerate registered apps
+  - `clear()`: Reset registry (for testing)
+- **globalRegistry**: Shared singleton instance for cross-module discovery
+- **Error types**: `AppNotFoundError`, `DuplicateAppError`, `InvalidManifestError`
+- **validateManifest()**: Runtime validation function with detailed error messages
+- **Auto-registration**: Apps auto-register when their module is imported
+  - `registerApp()` function is idempotent (safe to call multiple times)
+
+**Files created/modified**:
+
+- `packages/framework/protocol/src/registry.ts` — AppRegistry implementation
+- `packages/framework/protocol/src/index.ts` — Export registry types
+- `packages/framework/protocol/tests/registry.test.ts` — 28 comprehensive tests:
+  - Registration (valid, duplicate, optional fields)
+  - Get/tryGet/has queries
+  - List operations
+  - Manifest validation (all required/optional fields, error cases)
+  - Global registry singleton behavior
+- `packages/applications/blocks-cannons/src/index.ts` — Updated to use AppManifest type and auto-register
+- `packages/applications/blocks-cannons/tests/app.test.ts` — Updated to verify registration
+
+**Progress**:
+
+- [x] Design AppRegistry and AppManifest interfaces
+- [x] Implement AppRegistry in framework-protocol
+- [x] Create blocks-cannons app manifest with proper typing
+- [x] Add auto-registration on import
+- [x] Add comprehensive registry tests
+- [x] Run quality gate (npm run validate)
+
+**Quality gate**: ✓ All 368 tests pass (31 new registry + app tests)
+
+---
+
+### Portion 6 — Lobby Multi-App (NEXT)
