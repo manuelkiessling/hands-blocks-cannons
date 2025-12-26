@@ -1,3 +1,13 @@
+// Import game logic from blocks-cannons application
+import {
+  CAMERA_DISTANCE,
+  CANNON_AUTO_FIRE_INTERVAL_MS,
+  GameState,
+  type PlayerId,
+  PROJECTILE_SIZE,
+  TICK_RATE_MS,
+  WALL_GRID_CONFIG,
+} from '@gesture-app/blocks-cannons/server';
 import type { WebSocket } from 'ws';
 import {
   type ConnectionContext,
@@ -7,15 +17,6 @@ import {
 } from '../protocol/handlers.js';
 import type { ServerMessage } from '../protocol/messages.js';
 import { logger } from '../utils/logger.js';
-import { GameState } from './GameState.js';
-import {
-  CAMERA_DISTANCE,
-  CANNON_AUTO_FIRE_INTERVAL_MS,
-  type PlayerId,
-  PROJECTILE_SIZE,
-  TICK_RATE_MS,
-  WALL_GRID_CONFIG,
-} from './types.js';
 
 interface PlayerConnection {
   ws: WebSocket;

@@ -4,9 +4,9 @@
  * This makes the system easily extensible - just add a new handler function.
  */
 
+// Import game types from blocks-cannons application
+import type { GameState, PlayerId, Position } from '@gesture-app/blocks-cannons/server';
 import type { WebSocket } from 'ws';
-import type { GameState } from '../game/GameState.js';
-import type { PlayerId, Position } from '../game/types.js';
 import { logger } from '../utils/logger.js';
 import {
   type ClientMessage,

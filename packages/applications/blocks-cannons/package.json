@@ -13,16 +13,21 @@
     "./shared": {
       "import": "./dist/shared/index.js",
       "types": "./dist/shared/index.d.ts"
+    },
+    "./server": {
+      "import": "./dist/server/index.js",
+      "types": "./dist/server/index.d.ts"
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts src/shared/index.ts --format esm --dts --clean",
+    "build": "tsup src/index.ts src/shared/index.ts src/server/index.ts --format esm --dts --clean",
     "check": "biome check --write .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
     "@gesture-app/framework-protocol": "^1.0.0",
+    "yaml": "^2.8.0",
     "zod": "^4.0.0"
   },
   "devDependencies": {

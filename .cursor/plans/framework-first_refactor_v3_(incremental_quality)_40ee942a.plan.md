@@ -48,7 +48,7 @@ todos:
       - portion6-lobby-multiapp-with-tests
   - id: portion8-port-blocks-cannons-complete
     content: Complete the blocks-cannons port into applications/blocks-cannons and ensure all tests moved and passing.
-    status: pending
+    status: completed
     dependencies:
       - portion7-container-app-selection
   - id: portion9-second-app-proof
@@ -659,4 +659,52 @@ Once the refactor is complete and the framework is stable, these backwards-compa
 
 ---
 
-### Portion 8 — Complete blocks-cannons Port (NEXT)
+### Portion 8 — Complete blocks-cannons Port (COMPLETED)
+
+**Started**: 2025-12-26
+**Completed**: 2025-12-26
+
+**Design decisions**:
+
+- **Strangler-fig approach**: Instead of a big-bang rewrite, we established dependency directions:
+  - `@gesture-app/blocks-cannons/server` now contains game logic (GameState, systems)
+  - `@block-game/server` imports from `@gesture-app/blocks-cannons/server`
+  - Client and server use `@block-game/shared` which re-exports from blocks-cannons
+- **Game logic moved to app package**:
+  - GameState, CannonSystem, CollisionSystem, ProjectileSystem → `packages/applications/blocks-cannons/src/server/game/`
+  - Config loading → `packages/applications/blocks-cannons/src/server/config/`
+  - Tests moved alongside code
+- **Framework integration deferred**: Full integration with `SessionRuntime` AppHooks is a future task
+- **Bot code remains in server**: Bot is a consumer of game types, not a producer - correct dependency direction already established
+
+**Files created/modified**:
+
+- `packages/applications/blocks-cannons/src/server/game/GameState.ts` — Immutable game state
+- `packages/applications/blocks-cannons/src/server/game/CannonSystem.ts` — Cannon firing logic
+- `packages/applications/blocks-cannons/src/server/game/CollisionSystem.ts` — Collision detection
+- `packages/applications/blocks-cannons/src/server/game/ProjectileSystem.ts` — Projectile movement
+- `packages/applications/blocks-cannons/src/server/game/types.ts` — Runtime config and type re-exports
+- `packages/applications/blocks-cannons/src/server/config/gameConfig.ts` — YAML config loading
+- `packages/applications/blocks-cannons/config/game.yaml` — App-specific game config
+- `packages/applications/blocks-cannons/package.json` — Added server export and yaml dependency
+- `packages/server/package.json` — Added blocks-cannons dependency
+- `packages/server/src/game/GameManager.ts` — Updated imports to use blocks-cannons/server
+- `packages/server/src/protocol/handlers.ts` — Updated imports
+
+**Tests moved**:
+
+- `packages/applications/blocks-cannons/tests/server/GameState.test.ts` — 47 tests
+- `packages/applications/blocks-cannons/tests/server/CannonSystem.test.ts` — 15 tests
+- `packages/applications/blocks-cannons/tests/server/CollisionSystem.test.ts` — 14 tests
+- `packages/applications/blocks-cannons/tests/server/ProjectileSystem.test.ts` — 9 tests
+
+**Progress**:
+
+- [x] Move server game logic (GameState, systems) to blocks-cannons
+- [x] Move config loading to blocks-cannons
+- [x] Copy config file to app package
+- [x] Update imports in @block-game/server to use @gesture-app/blocks-cannons/server
+- [x] Move and adapt tests
+- [x] Run quality gate (npm run validate)
+
+**Quality gate**: ✓ All 461 tests pass (111 in blocks-cannons, including 85 new server tests)

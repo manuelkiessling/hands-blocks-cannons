@@ -1,0 +1,61 @@
+# Game Configuration
+# All timing values are in milliseconds unless otherwise noted
+
+# Room dimensions (units)
+room:
+  minX: -7
+  maxX: 7
+  minY: -5
+  maxY: 5
+  minZ: -8
+  maxZ: 32
+
+# Block settings
+blocks:
+  # Number of regular blocks per player (cannon is always 1 extra)
+  perPlayer: 5
+  # Block half-size for collision detection (units)
+  halfSize: 0.5
+  # If true, blocks push each other when they collide
+  collision: true
+
+# Cannon settings
+cannon:
+  # Auto-fire interval in milliseconds (set to 0 to disable auto-fire)
+  autoFireInterval: 1000
+  # Cooldown between shots in milliseconds (used if autoFireInterval is 0)
+  cooldown: 2000
+  # If true, cannons cannot be destroyed by projectiles
+  indestructible: true
+
+# Projectile settings
+projectile:
+  # Speed in units per second
+  speed: 16
+  # Radius for collision detection (units)
+  size: 0.3
+
+# Camera settings
+camera:
+  # Distance from the room edge to the camera (units)
+  distance: 12
+
+# Wall hit grid visualization
+wallGrid:
+  # Enable/disable the wall hit grid highlight
+  enabled: true
+  # How long the highlight stays visible (milliseconds)
+  highlightDuration: 1000
+  # Highlight intensity/opacity (0.0 to 1.0)
+  highlightIntensity: 0.8
+
+# Server tick rate in milliseconds
+tickRate: 50
+
+# Inactivity / cleanup settings
+inactivity:
+  # Time in milliseconds before server auto-shutdown due to inactivity (default: 5 minutes)
+  # Can be overridden by INACTIVITY_TIMEOUT_MS environment variable
+  timeoutMs: 300000
+  # Interval in milliseconds between inactivity checks
+  checkIntervalMs: 30000
