@@ -14,7 +14,7 @@
 export interface SessionConfig {
   /** Application identifier (e.g., "blocks-cannons") */
   readonly appId: string;
-  /** WebSocket URL for game server connection */
+  /** WebSocket URL for session server connection */
   readonly wsUrl: string;
   /** URL to return to the lobby */
   readonly lobbyUrl: string;

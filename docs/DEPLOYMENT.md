@@ -17,7 +17,7 @@ This guide explains how to deploy the Gesture Apps framework on an Ubuntu 24.04 
 
 All hostnames are at the same subdomain level under `dx-tooling.org` (single-level, hyphen-separated namespacing):
 - Lobby: `gestures-apps.dx-tooling.org`
-- Game sessions: `{sessionId}-{appId}-gestures.dx-tooling.org` (e.g., `xf46zra-blocks-cannons-gestures.dx-tooling.org`)
+- App sessions: `{sessionId}-{appId}-gestures.dx-tooling.org` (e.g., `xf46zra-blocks-cannons-gestures.dx-tooling.org`)
 
 If you already have a wildcard A record for `*.dx-tooling.org` pointing to your server, no additional DNS configuration is needed.
 
@@ -183,10 +183,10 @@ docker compose up --build -d
 After deployment, verify everything works:
 
 - [ ] Lobby accessible at `https://gestures-apps.dx-tooling.org`
-- [ ] Can create a game session (Play vs Bot)
-- [ ] Game session container starts (`docker ps | grep session-blocks-cannons`)
-- [ ] Game URL is accessible (`https://xf46zra-blocks-cannons-gestures.dx-tooling.org`)
-- [ ] WebSocket connection works (game loads without errors)
+- [ ] Can create an app session (Play vs Bot)
+- [ ] App session container starts (`docker ps | grep session-blocks-cannons`)
+- [ ] Session URL is accessible (`https://xf46zra-blocks-cannons-gestures.dx-tooling.org`)
+- [ ] WebSocket connection works (app loads without errors)
 - [ ] Bot opponent moves and fires
 
 ## Troubleshooting
@@ -206,7 +206,7 @@ After deployment, verify everything works:
 
 3. Check Traefik logs for routing issues.
 
-### Game Session Container Fails to Start
+### App Session Container Fails to Start
 
 1. Check the Docker socket is accessible from the lobby container:
    ```bash
@@ -218,7 +218,7 @@ After deployment, verify everything works:
 2. Test Docker access from inside the container:
    ```bash
    docker exec gestures-lobby bash /app/bin/docker-cli-wrapper.sh ps
-   # Should list running game session containers
+   # Should list running app session containers
    ```
 
 3. Check the application session image exists:
@@ -226,13 +226,13 @@ After deployment, verify everything works:
    docker images | grep blocks-cannons-gestures-app
    ```
 
-4. Verify the config file is in the correct location (if game server fails to start):
+4. Verify the config file is in the correct location (if app server fails to start):
    ```bash
    docker exec session-blocks-cannons-<sessionid> ls -la /app/config/game.yaml
    # Should show the config file exists
    ```
 
-### Game Session Not Accessible
+### App Session Not Accessible
 
 1. Check the container is running:
    ```bash
@@ -250,12 +250,12 @@ After deployment, verify everything works:
 
 ### WebSocket Connection Failed
 
-1. Check nginx is running inside the game container:
+1. Check nginx is running inside the app session container:
    ```bash
    docker exec session-blocks-cannons-<sessionid> ps aux | grep nginx
    ```
 
-2. Check the game server is running:
+2. Check the app server is running:
    ```bash
    docker exec session-blocks-cannons-<sessionid> ps aux | grep node
    ```
@@ -279,7 +279,7 @@ After deployment, verify everything works:
 │         │                 │                                     │
 │         ▼                 ▼                                     │
 │  ┌─────────────┐   ┌─────────────┐                              │
-│  │   Lobby     │   │Game Session │ (dynamically spawned)        │
+│  │   Lobby     │   │App Session  │ (dynamically spawned)        │
 │  │  Container  │   │  Container  │                              │
 │  │             │   │             │                              │
 │  │  Express +  │   │  nginx +    │                              │
@@ -302,6 +302,6 @@ After deployment, verify everything works:
 - Container names must match `session-*` pattern
 - Only app-specific session images can be run (pattern: `{appId}-gestures-app`)
 - The wrapper script validates all commands before execution (this is the primary security mechanism)
-- Game sessions are isolated in their own containers
+- App sessions are isolated in their own containers
 - The lobby container runs as root to access the Docker socket, but the wrapper script provides command restrictions
 - The Docker socket requires write access to create/stop/remove containers, so it's mounted without `:ro` flag

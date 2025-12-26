@@ -81,8 +81,8 @@ describe('Sessions Router', () => {
       expect(status).toBe(201);
       expect(data.sessionId).toMatch(/^[a-z0-9]{6}$/);
       expect(data.appId).toBe('blocks-cannons');
-      expect(data.gameUrl).toContain(data.sessionId);
-      expect(data.gameUrl).toContain('blocks-cannons');
+      expect(data.sessionUrl).toContain(data.sessionId);
+      expect(data.sessionUrl).toContain('blocks-cannons');
       expect(data.joinUrl).toBeNull();
     });
 
@@ -94,7 +94,7 @@ describe('Sessions Router', () => {
 
       expect(status).toBe(201);
       expect(data.appId).toBe('blocks-cannons');
-      expect(data.joinUrl).toBe(data.gameUrl);
+      expect(data.joinUrl).toBe(data.sessionUrl);
     });
 
     it('should reject missing appId', async () => {

@@ -1,12 +1,12 @@
 /**
- * Game session types for the lobby.
+ * App session types for the lobby.
  */
 
 export type OpponentType = 'bot' | 'human';
 
 export type SessionStatus = 'starting' | 'waiting' | 'active' | 'ended' | 'error';
 
-export interface GameSession {
+export interface AppSession {
   /** Unique session identifier (alphanumeric, lowercase) */
   id: string;
   /** Application identifier */
@@ -15,9 +15,9 @@ export interface GameSession {
   opponentType: OpponentType;
   /** Current session status */
   status: SessionStatus;
-  /** URL to join the game */
-  gameUrl: string;
-  /** URL to share with opponent (for human games) */
+  /** URL to join the session */
+  sessionUrl: string;
+  /** URL to share with opponent (for human sessions) */
   joinUrl: string | null;
   /** Docker container name */
   containerName: string;
@@ -39,7 +39,7 @@ export interface CreateSessionRequest {
 export interface CreateSessionResponse {
   sessionId: string;
   appId: string;
-  gameUrl: string;
+  sessionUrl: string;
   joinUrl: string | null;
 }
 
@@ -47,7 +47,7 @@ export interface SessionStatusResponse {
   sessionId: string;
   appId: string;
   status: SessionStatus;
-  gameUrl: string;
+  sessionUrl: string;
   joinUrl: string | null;
   errorMessage?: string;
 }

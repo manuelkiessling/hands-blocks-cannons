@@ -28,7 +28,7 @@ The framework handles all the common concerns of a two-participant, WebSocket-ne
 │  │                    Your Application                      │    │
 │  │                                                          │    │
 │  │  • Shared types & protocol                               │    │
-│  │  • Server game logic (via AppHooks)                      │    │
+│  │  • Server app logic (via AppHooks)                       │    │
 │  │  • Client UI & rendering                                 │    │
 │  └─────────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────┘
@@ -394,7 +394,7 @@ export class MyAppHooks
 export function createMyAppConfig(): SessionRuntimeConfig {
   return {
     maxParticipants: 2,
-    tickEnabled: false,  // Set to true if you need a game loop
+    tickEnabled: false,  // Set to true if you need a real-time update loop
     tickIntervalMs: 16,
   };
 }
@@ -1296,7 +1296,7 @@ The camera feed stays local - only extracted hand positions (x, y coordinates) a
 | App | Description | Key Features |
 |-----|-------------|--------------|
 | **hello-hands** | Wave hello demo | 2D skeleton visualization, raise-to-ready gesture, position sharing |
-| **blocks-cannons** | Competitive game | 3D volumetric hands, game state, bot AI, pinch-to-grab |
+| **blocks-cannons** | Competitive app | 3D volumetric hands, app state, bot AI, pinch-to-grab |
 
 Refer to `packages/applications/hello-hands/` for a complete hand-tracking reference implementation, including:
 - Camera permission flow with overlay UI

@@ -26,7 +26,7 @@ packages/applications/my-app/
 │   ├── shared.test.ts        # Protocol, types, schemas
 │   └── server/
 │       ├── MyAppSession.test.ts  # AppHooks unit tests
-│       └── GameState.test.ts     # State management tests
+│       └── AppState.test.ts      # State management tests
 ├── client/
 │   └── tests/
 │       ├── GestureDetector.test.ts
@@ -213,7 +213,7 @@ Use descriptive test names that read as sentences:
 
 ```typescript
 // Good
-it('should broadcast hand_update to opponent when playing', () => { ... });
+it('should broadcast hand_update to opponent during active session', () => { ... });
 it('should reject connection when session is full', () => { ... });
 
 // Bad

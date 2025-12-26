@@ -1,4 +1,4 @@
-import type { GameSession, OpponentType, SessionStatus } from '../types.js';
+import type { AppSession, OpponentType, SessionStatus } from '../types.js';
 
 /**
  * Configuration for session URL generation.
@@ -20,10 +20,10 @@ const DEFAULT_CONFIG: SessionStoreConfig = {
 };
 
 /**
- * In-memory store for game sessions.
+ * In-memory store for app sessions.
  */
 export class SessionStore {
-  private sessions = new Map<string, GameSession>();
+  private sessions = new Map<string, AppSession>();
   private readonly config: SessionStoreConfig;
 
   constructor(config: Partial<SessionStoreConfig> = {}) {
@@ -48,28 +48,28 @@ export class SessionStore {
   }
 
   /**
-   * Generate the game URL for a session.
+   * Generate the session URL.
    * Format: https://{sessionId}-{appId}-gestures.{baseDomain}
    * Example: https://xf46zra-blocks-cannons-gestures.dx-tooling.org
    */
-  private generateGameUrl(sessionId: string, appId: string): string {
+  private generateSessionUrl(sessionId: string, appId: string): string {
     return `https://${sessionId}-${appId}-gestures.${this.config.baseDomain}`;
   }
 
   /**
    * Create a new session.
    */
-  create(id: string, appId: string, opponentType: OpponentType): GameSession {
-    const gameUrl = this.generateGameUrl(id, appId);
-    const joinUrl = opponentType === 'human' ? gameUrl : null;
+  create(id: string, appId: string, opponentType: OpponentType): AppSession {
+    const sessionUrl = this.generateSessionUrl(id, appId);
+    const joinUrl = opponentType === 'human' ? sessionUrl : null;
     const containerName = `session-${appId}-${id}`;
 
-    const session: GameSession = {
+    const session: AppSession = {
       id,
       appId,
       opponentType,
       status: 'starting',
-      gameUrl,
+      sessionUrl,
       joinUrl,
       containerName,
       createdAt: new Date(),
@@ -82,7 +82,7 @@ export class SessionStore {
   /**
    * Get a session by ID.
    */
-  get(id: string): GameSession | undefined {
+  get(id: string): AppSession | undefined {
     return this.sessions.get(id);
   }
 
@@ -109,14 +109,14 @@ export class SessionStore {
   /**
    * Get all sessions.
    */
-  getAll(): GameSession[] {
+  getAll(): AppSession[] {
     return Array.from(this.sessions.values());
   }
 
   /**
    * Get all sessions for a specific app.
    */
-  getByAppId(appId: string): GameSession[] {
+  getByAppId(appId: string): AppSession[] {
     return Array.from(this.sessions.values()).filter((s) => s.appId === appId);
   }
 

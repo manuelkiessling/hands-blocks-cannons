@@ -48,13 +48,13 @@ describe('AppRegistry', () => {
         id: 'test-app',
         name: 'Test App',
         version: '1.0.0',
-        tags: ['game', 'multiplayer'],
+        tags: ['demo', 'multiplayer'],
       };
 
       registry.register(manifest);
 
       const retrieved = registry.get('test-app');
-      expect(retrieved.tags).toEqual(['game', 'multiplayer']);
+      expect(retrieved.tags).toEqual(['demo', 'multiplayer']);
     });
 
     it('should throw DuplicateAppError for duplicate registration', () => {

@@ -34,7 +34,7 @@ export function createSessionRouter(sessionStore: SessionStore): Router {
   });
 
   /**
-   * POST /api/sessions - Create a new game session
+   * POST /api/sessions - Create a new app session
    */
   router.post('/', async (req: Request, res: Response) => {
     try {
@@ -85,7 +85,7 @@ export function createSessionRouter(sessionStore: SessionStore): Router {
       const response: CreateSessionResponse = {
         sessionId: session.id,
         appId: session.appId,
-        gameUrl: session.gameUrl,
+        sessionUrl: session.sessionUrl,
         joinUrl: session.joinUrl,
       };
 
@@ -112,7 +112,7 @@ export function createSessionRouter(sessionStore: SessionStore): Router {
       sessionId: session.id,
       appId: session.appId,
       status: session.status,
-      gameUrl: session.gameUrl,
+      sessionUrl: session.sessionUrl,
       joinUrl: session.joinUrl,
       errorMessage: session.errorMessage,
     };

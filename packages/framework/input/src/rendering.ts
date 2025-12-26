@@ -4,7 +4,7 @@
  * Provides functions to draw hand skeletons on 2D canvas, useful for:
  * - Camera preview overlays
  * - Debug visualization
- * - 2D hand-based games
+ * - 2D hand-based apps
  */
 
 import { HAND_CONNECTIONS, LANDMARKS } from './constants.js';

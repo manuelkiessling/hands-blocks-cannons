@@ -34,7 +34,7 @@ describe('SessionStore', () => {
       expect(session.appId).toBe('blocks-cannons');
       expect(session.opponentType).toBe('bot');
       expect(session.status).toBe('starting');
-      expect(session.gameUrl).toBe('https://abc123-blocks-cannons-gestures.dx-tooling.org');
+      expect(session.sessionUrl).toBe('https://abc123-blocks-cannons-gestures.dx-tooling.org');
       expect(session.joinUrl).toBeNull();
       expect(session.containerName).toBe('session-blocks-cannons-abc123');
       expect(session.createdAt).toBeInstanceOf(Date);
@@ -61,7 +61,7 @@ describe('SessionStore', () => {
       const customStore = new SessionStore({ baseDomain: 'custom.example.com' });
       const session = customStore.create('abc123', 'my-app', 'bot');
 
-      expect(session.gameUrl).toBe('https://abc123-my-app-gestures.custom.example.com');
+      expect(session.sessionUrl).toBe('https://abc123-my-app-gestures.custom.example.com');
     });
   });
 

@@ -110,9 +110,9 @@ onMessage(message: ClientMsg, senderId: string, phase: SessionPhase): MessageRes
 }
 ```
 
-## Tick-Based Games
+## Tick-Based Updates
 
-For real-time games, enable the tick loop:
+For real-time apps, enable the tick loop:
 
 ```typescript
 const config = {
@@ -121,10 +121,10 @@ const config = {
   tickIntervalMs: 16,  // ~60 FPS
 };
 
-class GameHooks implements AppHooks<...> {
+class MyAppHooks implements AppHooks<...> {
   onTick(deltaTime: number): ServerMsg[] {
     // Update physics, projectiles, etc.
-    const result = this.gameState.update(deltaTime);
+    const result = this.appState.update(deltaTime);
     
     const messages: ServerMsg[] = [];
     
@@ -137,11 +137,11 @@ class GameHooks implements AppHooks<...> {
   }
 
   checkSessionEnd(): { winnerId: string; winnerNumber: 1 | 2 } | null {
-    // Check win condition each tick
-    if (this.gameState.isGameOver()) {
+    // Check end condition each tick
+    if (this.appState.isSessionOver()) {
       return {
-        winnerId: this.gameState.winnerId,
-        winnerNumber: this.gameState.winnerNumber,
+        winnerId: this.appState.winnerId,
+        winnerNumber: this.appState.winnerNumber,
       };
     }
     return null;

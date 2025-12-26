@@ -25,10 +25,10 @@ const client = new SessionClient<ClientMessage, ServerMessage, WelcomeData, unde
     // Handle opponent disconnect
   },
   onSessionStart: () => {
-    // Both players ready - game begins
+    // Both participants ready - session begins
   },
   onSessionEnd: (winnerId, winnerNumber, reason, appData) => {
-    // Game over - show results, play-again option
+    // Session ended - show results, play-again option
   },
   onSessionReset: (appData) => {
     // New round starting
@@ -64,7 +64,7 @@ async function init() {
 Track session phase for UI state:
 
 ```typescript
-type AppPhase = 'connecting' | 'camera' | 'waiting' | 'ready' | 'playing' | 'finished';
+type AppPhase = 'connecting' | 'camera' | 'waiting' | 'ready' | 'active' | 'finished';
 
 let phase: AppPhase = 'connecting';
 
@@ -72,8 +72,8 @@ let phase: AppPhase = 'connecting';
 // connecting → camera (after welcome, need camera permission)
 // camera → waiting (after camera granted, no opponent yet)
 // waiting → ready (opponent joined, waiting for both ready)
-// ready → playing (both ready, game started)
-// playing → finished (game ended)
+// ready → active (both ready, session started)
+// active → finished (session ended)
 // finished → ready (reset for new round)
 ```
 
@@ -101,7 +101,7 @@ client.sendAppMessage({ type: 'hand_update', handState });
 // Framework lifecycle message
 client.sendReady();
 
-// Play again vote (after game ends)
+// Play again vote (after session ends)
 client.sendPlayAgainVote();
 ```
 

@@ -240,8 +240,8 @@ main {
   color: var(--text-primary);
 }
 
-/* Game mode buttons */
-.game-modes {
+/* Session mode buttons */
+.session-modes {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 1.5rem;
@@ -539,7 +539,7 @@ footer p {
     padding: 1.5rem;
   }
 
-  .game-modes {
+  .session-modes {
     grid-template-columns: 1fr;
   }
 

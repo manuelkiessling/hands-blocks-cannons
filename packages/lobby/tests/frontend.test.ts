@@ -27,7 +27,7 @@ interface AppsResponse {
 interface CreateSessionResponse {
   sessionId: string;
   appId: string;
-  gameUrl: string;
+  sessionUrl: string;
   joinUrl: string | null;
 }
 
@@ -72,8 +72,8 @@ describe('Frontend API Client', () => {
           id: 'blocks-cannons',
           name: 'Blocks & Cannons',
           version: '1.0.0',
-          description: 'A competitive game',
-          tags: ['game', 'competitive'],
+          description: 'A competitive app',
+          tags: ['competitive'],
           supportsBot: true,
         },
         {
@@ -125,7 +125,7 @@ describe('Frontend API Client', () => {
       const mockResponse: CreateSessionResponse = {
         sessionId: 'abc123',
         appId: 'blocks-cannons',
-        gameUrl: 'https://abc123-blocks-cannons-gestures.dx-tooling.org',
+        sessionUrl: 'https://abc123-blocks-cannons-gestures.dx-tooling.org',
         joinUrl: null,
       };
 
@@ -154,7 +154,7 @@ describe('Frontend API Client', () => {
       const mockResponse: CreateSessionResponse = {
         sessionId: 'def456',
         appId: 'hello-hands',
-        gameUrl: 'https://def456-hello-hands-gestures.dx-tooling.org',
+        sessionUrl: 'https://def456-hello-hands-gestures.dx-tooling.org',
         joinUrl: 'https://def456-hello-hands-gestures.dx-tooling.org',
       };
 
@@ -175,7 +175,7 @@ describe('Frontend API Client', () => {
         }),
       });
       expect(session.appId).toBe('hello-hands');
-      expect(session.joinUrl).toBe(session.gameUrl);
+      expect(session.joinUrl).toBe(session.sessionUrl);
     });
 
     it('should throw error with message from server', async () => {
@@ -198,13 +198,13 @@ describe('Frontend API Client', () => {
       await expect(createSession('some-app', 'bot')).rejects.toThrow('Failed to create session');
     });
 
-    it('should include botDifficulty only for bot games', async () => {
+    it('should include botDifficulty only for bot sessions', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
           sessionId: 'xyz789',
           appId: 'blocks-cannons',
-          gameUrl: 'https://xyz789-blocks-cannons-gestures.dx-tooling.org',
+          sessionUrl: 'https://xyz789-blocks-cannons-gestures.dx-tooling.org',
           joinUrl: null,
         }),
       });

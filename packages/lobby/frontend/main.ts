@@ -22,7 +22,7 @@ interface AppsResponse {
 interface CreateSessionResponse {
   sessionId: string;
   appId: string;
-  gameUrl: string;
+  sessionUrl: string;
   joinUrl: string | null;
 }
 
@@ -32,7 +32,7 @@ const screens = {
   start: document.getElementById('start-screen'),
   botSettings: document.getElementById('bot-settings'),
   loading: document.getElementById('loading-screen'),
-  gameReady: document.getElementById('game-ready'),
+  sessionReady: document.getElementById('session-ready'),
   error: document.getElementById('error-screen'),
 } as const;
 
@@ -56,14 +56,14 @@ const backToAppsBtn = document.getElementById('back-to-apps');
 const playBotBtn = document.getElementById('play-bot');
 const playHumanBtn = document.getElementById('play-human');
 const backFromBotBtn = document.getElementById('back-from-bot');
-const startBotGameBtn = document.getElementById('start-bot-game');
+const startBotSessionBtn = document.getElementById('start-bot-session');
 const difficultySlider = document.getElementById('difficulty') as HTMLInputElement | null;
 const loadingText = document.getElementById('loading-text');
 const shareSection = document.getElementById('share-section');
 const shareUrlInput = document.getElementById('share-url') as HTMLInputElement | null;
 const copyUrlBtn = document.getElementById('copy-url');
-const cancelGameBtn = document.getElementById('cancel-game');
-const joinGameBtn = document.getElementById('join-game');
+const cancelSessionBtn = document.getElementById('cancel-session');
+const joinSessionBtn = document.getElementById('join-session');
 const errorMessage = document.getElementById('error-message');
 const tryAgainBtn = document.getElementById('try-again');
 
@@ -175,7 +175,7 @@ function handleBackFromBot(): void {
   showScreen('start');
 }
 
-function handleStartBotGame(): void {
+function handleStartBotSession(): void {
   const difficulty = difficultySlider ? Number(difficultySlider.value) / 100 : 0.5;
   startSession('bot', difficulty);
 }
@@ -197,10 +197,10 @@ async function startSession(opponentType: 'bot' | 'human', botDifficulty?: numbe
   try {
     currentSession = await createSession(selectedApp.id, opponentType, botDifficulty);
 
-    // Show game ready screen
-    showScreen('gameReady');
+    // Show session ready screen
+    showScreen('sessionReady');
 
-    // Show share section for human games
+    // Show share section for human sessions
     if (shareSection && shareUrlInput) {
       if (opponentType === 'human' && currentSession.joinUrl) {
         shareSection.classList.remove('hidden');
@@ -218,15 +218,15 @@ async function startSession(opponentType: 'bot' | 'human', botDifficulty?: numbe
 }
 
 function startJoinCountdown(): void {
-  if (!joinGameBtn) return;
+  if (!joinSessionBtn) return;
 
   // Disable button and start countdown
-  joinGameBtn.setAttribute('disabled', 'true');
+  joinSessionBtn.setAttribute('disabled', 'true');
   let secondsLeft = CONTAINER_READY_DELAY_SECONDS;
 
   const updateButtonText = (): void => {
-    if (joinGameBtn) {
-      joinGameBtn.textContent = `Preparing... ${secondsLeft}s`;
+    if (joinSessionBtn) {
+      joinSessionBtn.textContent = `Preparing... ${secondsLeft}s`;
     }
   };
 
@@ -236,9 +236,9 @@ function startJoinCountdown(): void {
     secondsLeft--;
     if (secondsLeft <= 0) {
       clearInterval(countdownInterval);
-      if (joinGameBtn) {
-        joinGameBtn.removeAttribute('disabled');
-        joinGameBtn.textContent = 'Join';
+      if (joinSessionBtn) {
+        joinSessionBtn.removeAttribute('disabled');
+        joinSessionBtn.textContent = 'Join';
       }
     } else {
       updateButtonText();
@@ -260,7 +260,7 @@ function handleCopyUrl(): void {
   }
 }
 
-async function handleCancelGame(): Promise<void> {
+async function handleCancelSession(): Promise<void> {
   if (currentSession) {
     try {
       await deleteSession(currentSession.sessionId);
@@ -272,9 +272,9 @@ async function handleCancelGame(): Promise<void> {
   showScreen('start');
 }
 
-function handleJoinGame(): void {
+function handleJoinSession(): void {
   if (currentSession) {
-    window.location.href = currentSession.gameUrl;
+    window.location.href = currentSession.sessionUrl;
   }
 }
 
@@ -299,10 +299,10 @@ backToAppsBtn?.addEventListener('click', handleBackToApps);
 playBotBtn?.addEventListener('click', handlePlayBot);
 playHumanBtn?.addEventListener('click', handlePlayHuman);
 backFromBotBtn?.addEventListener('click', handleBackFromBot);
-startBotGameBtn?.addEventListener('click', handleStartBotGame);
+startBotSessionBtn?.addEventListener('click', handleStartBotSession);
 copyUrlBtn?.addEventListener('click', handleCopyUrl);
-cancelGameBtn?.addEventListener('click', handleCancelGame);
-joinGameBtn?.addEventListener('click', handleJoinGame);
+cancelSessionBtn?.addEventListener('click', handleCancelSession);
+joinSessionBtn?.addEventListener('click', handleJoinSession);
 tryAgainBtn?.addEventListener('click', handleTryAgain);
 
 // Initialize

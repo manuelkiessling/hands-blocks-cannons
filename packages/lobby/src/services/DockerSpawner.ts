@@ -56,7 +56,7 @@ export class DockerSpawner {
   }
 
   /**
-   * Spawn a new game session container.
+   * Spawn a new app session container.
    */
   async spawn(
     sessionId: string,
@@ -141,7 +141,7 @@ export class DockerSpawner {
   }
 
   /**
-   * List running game session containers.
+   * List running app session containers.
    */
   async list(): Promise<string[]> {
     try {

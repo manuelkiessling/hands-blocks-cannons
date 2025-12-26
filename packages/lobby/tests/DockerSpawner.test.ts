@@ -32,7 +32,7 @@ describe('DockerSpawner', () => {
   });
 
   describe('spawn', () => {
-    it('should call wrapper with correct arguments for bot game', async () => {
+    it('should call wrapper with correct arguments for bot session', async () => {
       await spawner.spawn('abc123', 'blocks-cannons', true, 0.7);
 
       expect(mockExecFile).toHaveBeenCalledTimes(1);
@@ -71,7 +71,7 @@ describe('DockerSpawner', () => {
       expect(args[args.length - 1]).toBe('blocks-cannons-gestures-app');
     });
 
-    it('should call wrapper with correct arguments for human game', async () => {
+    it('should call wrapper with correct arguments for human session', async () => {
       await spawner.spawn('xyz789', 'blocks-cannons', false);
 
       const [, args] = mockExecFile.mock.calls[0] as [string, string[]];
