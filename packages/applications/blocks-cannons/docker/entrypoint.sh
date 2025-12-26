@@ -12,8 +12,9 @@ APP_ID="${APP_ID:-blocks-cannons}"
 
 # Generate session config JSON for the client
 # This will be served by nginx at /session.json
-LOBBY_URL="${LOBBY_URL:-https://lobby.dx-tooling.org}"
-WS_URL="wss://${SESSION_ID}-${APP_ID}.dx-tooling.org/ws"
+# Format: {sessionId}-{appId}-gestures.dx-tooling.org (single-level subdomain)
+LOBBY_URL="${LOBBY_URL:-https://gestures-apps.dx-tooling.org}"
+WS_URL="wss://${SESSION_ID}-${APP_ID}-gestures.dx-tooling.org/ws"
 
 cat > /app/client/session.json <<EOF
 {

@@ -47,7 +47,7 @@ describe('SessionConfig', () => {
     });
 
     it('should return false for production hostname', () => {
-      mockLocation.hostname = 'abc123-hands-blocks-cannons.dx-tooling.org';
+      mockLocation.hostname = 'abc123-blocks-cannons-gestures.dx-tooling.org';
       expect(isLocalDevelopment()).toBe(false);
     });
 

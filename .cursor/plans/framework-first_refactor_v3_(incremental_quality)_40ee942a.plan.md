@@ -566,8 +566,9 @@ Once the refactor is complete and the framework is stable, these backwards-compa
   - New `GET /api/sessions/apps` endpoint lists available apps from registry
 - **Validation**: `appId` is validated against the global registry before session creation
   - Returns 400 with helpful error message and list of available apps if unknown
-- **URL format**: `https://{sessionId}-{appId}.{baseDomain}`
-  - Example: `https://abc123-blocks-cannons.dx-tooling.org`
+- **URL format**: `https://{sessionId}-{appId}-gestures.{baseDomain}` (single-level subdomain)
+  - Example: `https://abc123-blocks-cannons-gestures.dx-tooling.org`
+  - Lobby at: `https://gestures-apps.dx-tooling.org`
 - **Container naming**: `session-{appId}-{sessionId}`
   - Example: `session-blocks-cannons-abc123`
 - **Docker image naming**: `{appId}-game-session`
@@ -622,8 +623,8 @@ Once the refactor is complete and the framework is stable, these backwards-compa
   {
     "appId": "blocks-cannons",
     "sessionId": "abc123",
-    "wsUrl": "wss://abc123-blocks-cannons.dx-tooling.org/ws",
-    "lobbyUrl": "https://lobby.dx-tooling.org",
+    "wsUrl": "wss://abc123-blocks-cannons-gestures.dx-tooling.org/ws",
+    "lobbyUrl": "https://gestures-apps.dx-tooling.org",
     "withBot": false,
     "botDifficulty": 0.5
   }

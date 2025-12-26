@@ -64,7 +64,7 @@ describe('DockerSpawner', () => {
       // Check Traefik labels (now include appId in hostname)
       expect(args).toContain('traefik.enable=true');
       expect(args).toContain(
-        'traefik.http.routers.session-blocks-cannons-abc123.rule=Host(`abc123-blocks-cannons.dx-tooling.org`)'
+        'traefik.http.routers.session-blocks-cannons-abc123.rule=Host(`abc123-blocks-cannons-gestures.dx-tooling.org`)'
       );
 
       // Check image name is appId-prefixed

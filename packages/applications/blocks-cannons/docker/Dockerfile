@@ -73,7 +73,7 @@ ENV SESSION_ID=""
 ENV APP_ID="blocks-cannons"
 ENV WITH_BOT="false"
 ENV BOT_DIFFICULTY="0.5"
-ENV LOBBY_URL="https://lobby.dx-tooling.org"
+ENV LOBBY_URL="https://gestures-apps.dx-tooling.org"
 
 # Expose port 80 (nginx)
 EXPOSE 80

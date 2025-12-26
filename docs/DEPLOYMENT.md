@@ -1,6 +1,6 @@
 # Deployment Guide
 
-This guide explains how to deploy Hands, Blocks & Cannons on an Ubuntu 24.04 server with Docker and Traefik.
+This guide explains how to deploy the Gesture Apps framework on an Ubuntu 24.04 server with Docker and Traefik.
 
 ## Prerequisites
 
@@ -15,9 +15,9 @@ This guide explains how to deploy Hands, Blocks & Cannons on an Ubuntu 24.04 ser
 
 ### DNS Configuration
 
-All hostnames are at the same subdomain level under `dx-tooling.org`:
-- Lobby: `hands-blocks-cannons.dx-tooling.org`
-- Game sessions: `{sessionId}-hands-blocks-cannons.dx-tooling.org` (e.g., `abc123-hands-blocks-cannons.dx-tooling.org`)
+All hostnames are at the same subdomain level under `dx-tooling.org` (single-level, hyphen-separated namespacing):
+- Lobby: `gestures-apps.dx-tooling.org`
+- Game sessions: `{sessionId}-{appId}-gestures.dx-tooling.org` (e.g., `xf46zra-blocks-cannons-gestures.dx-tooling.org`)
 
 If you already have a wildcard A record for `*.dx-tooling.org` pointing to your server, no additional DNS configuration is needed.
 
@@ -27,7 +27,7 @@ Otherwise, you'll need to configure DNS records pointing to your server's IP add
 |-------------|------|-------|
 | A | `*.dx-tooling.org` | `<server-ip>` |
 
-> **Note:** DNS propagation can take up to 48 hours. Verify with `dig +short hands-blocks-cannons.dx-tooling.org`
+> **Note:** DNS propagation can take up to 48 hours. Verify with `dig +short gestures-apps.dx-tooling.org`
 
 ## Deployment Steps
 
@@ -37,8 +37,8 @@ Otherwise, you'll need to configure DNS records pointing to your server's IP add
 # As root or with sudo
 mkdir -p /var/www
 cd /var/www
-git clone https://github.com/your-org/cam-gesture-experiment.git hands-blocks-cannons
-cd hands-blocks-cannons
+git clone https://github.com/your-org/cam-gesture-experiment.git gestures-apps
+cd gestures-apps
 ```
 
 ### 2. Make Wrapper Script Executable
@@ -86,55 +86,57 @@ docker compose ps
 docker compose logs -f lobby
 ```
 
-Visit `https://hands-blocks-cannons.dx-tooling.org` in your browser.
+Visit `https://gestures-apps.dx-tooling.org` in your browser.
 
 ## Manual Testing: Launching Game Session Containers
 
 For testing purposes, you can manually launch a game session container. This is useful for debugging or testing without going through the lobby UI.
 
-### Example: Launch a test session at `test-hands-blocks-cannons.dx-tooling.org`
+### Example: Launch a test session at `test-blocks-cannons-gestures.dx-tooling.org`
 
 **From the Docker host (using `docker run` directly):**
 
 ```bash
 docker run -d \
-  --name hbc-session-test \
+  --name session-blocks-cannons-test \
   --network outermost_router \
   -e SESSION_ID=test \
+  -e APP_ID=blocks-cannons \
   -e WITH_BOT=true \
   -e BOT_DIFFICULTY=0.5 \
   -l traefik.enable=true \
   -l outermost_router.enable=true \
   -l traefik.docker.network=outermost_router \
-  -l 'traefik.http.routers.hbc-test.rule=Host(`test-hands-blocks-cannons.dx-tooling.org`)' \
-  -l traefik.http.routers.hbc-test.entrypoints=websecure \
-  -l traefik.http.routers.hbc-test.tls=true \
-  -l traefik.http.services.hbc-test.loadbalancer.server.port=80 \
-  hbc-game-session
+  -l 'traefik.http.routers.session-blocks-cannons-test.rule=Host(`test-blocks-cannons-gestures.dx-tooling.org`)' \
+  -l traefik.http.routers.session-blocks-cannons-test.entrypoints=websecure \
+  -l traefik.http.routers.session-blocks-cannons-test.tls=true \
+  -l traefik.http.services.session-blocks-cannons-test.loadbalancer.server.port=80 \
+  blocks-cannons-game-session
 ```
 
 **From inside the lobby container (using the wrapper script):**
 
 ```bash
 # First, exec into the lobby container
-docker exec -it hbc-lobby bash
+docker exec -it gestures-lobby bash
 
 # Then run the wrapper script
 bash /app/bin/docker-cli-wrapper.sh run \
   -d \
-  --name hbc-session-test \
+  --name session-blocks-cannons-test \
   --network outermost_router \
   -e SESSION_ID=test \
+  -e APP_ID=blocks-cannons \
   -e WITH_BOT=true \
   -e BOT_DIFFICULTY=0.5 \
   -l traefik.enable=true \
   -l outermost_router.enable=true \
   -l traefik.docker.network=outermost_router \
-  -l 'traefik.http.routers.hbc-test.rule=Host(`test-hands-blocks-cannons.dx-tooling.org`)' \
-  -l traefik.http.routers.hbc-test.entrypoints=websecure \
-  -l traefik.http.routers.hbc-test.tls=true \
-  -l traefik.http.services.hbc-test.loadbalancer.server.port=80 \
-  hbc-game-session
+  -l 'traefik.http.routers.session-blocks-cannons-test.rule=Host(`test-blocks-cannons-gestures.dx-tooling.org`)' \
+  -l traefik.http.routers.session-blocks-cannons-test.entrypoints=websecure \
+  -l traefik.http.routers.session-blocks-cannons-test.tls=true \
+  -l traefik.http.services.session-blocks-cannons-test.loadbalancer.server.port=80 \
+  blocks-cannons-game-session
 ```
 
 **Cleanup:**
@@ -143,22 +145,22 @@ To stop and remove the test container:
 
 ```bash
 # From host
-docker stop hbc-session-test
-docker rm hbc-session-test
+docker stop session-blocks-cannons-test
+docker rm session-blocks-cannons-test
 
 # Or from inside lobby container using wrapper
-docker exec hbc-lobby bash /app/bin/docker-cli-wrapper.sh stop hbc-session-test
-docker exec hbc-lobby bash /app/bin/docker-cli-wrapper.sh rm hbc-session-test
+docker exec gestures-lobby bash /app/bin/docker-cli-wrapper.sh stop session-blocks-cannons-test
+docker exec gestures-lobby bash /app/bin/docker-cli-wrapper.sh rm session-blocks-cannons-test
 ```
 
-> **Note:** Replace `test` with your desired session ID. The hostname pattern is `{sessionId}-hands-blocks-cannons.dx-tooling.org`, and the container name must match `hbc-session-{sessionId}`.
+> **Note:** Replace `test` with your desired session ID. The hostname pattern is `{sessionId}-{appId}-gestures.dx-tooling.org`, and the container name is `session-{appId}-{sessionId}`.
 
 ## Updating
 
 To update to a new version:
 
 ```bash
-cd /var/www/hands-blocks-cannons
+cd /var/www/gestures-apps
 
 # Pull latest code
 git pull
@@ -174,10 +176,10 @@ docker compose up --build -d
 
 After deployment, verify everything works:
 
-- [ ] Lobby accessible at `https://hands-blocks-cannons.dx-tooling.org`
+- [ ] Lobby accessible at `https://gestures-apps.dx-tooling.org`
 - [ ] Can create a game session (Play vs Bot)
-- [ ] Game session container starts (`docker ps | grep hbc-session`)
-- [ ] Game URL is accessible (`https://abc123-hands-blocks-cannons.dx-tooling.org`)
+- [ ] Game session container starts (`docker ps | grep session-blocks-cannons`)
+- [ ] Game URL is accessible (`https://xf46zra-blocks-cannons-gestures.dx-tooling.org`)
 - [ ] WebSocket connection works (game loads without errors)
 - [ ] Bot opponent moves and fires
 
@@ -188,7 +190,7 @@ After deployment, verify everything works:
 1. Check Traefik is routing correctly:
    ```bash
    docker compose logs lobby
-   curl -I https://hands-blocks-cannons.dx-tooling.org
+   curl -I https://gestures-apps.dx-tooling.org
    ```
 
 2. Verify container is on the right network:
@@ -203,24 +205,24 @@ After deployment, verify everything works:
 1. Check the Docker socket is accessible from the lobby container:
    ```bash
    # From inside the lobby container
-   docker exec hbc-lobby ls -la /var/run/docker.sock
+   docker exec gestures-lobby ls -la /var/run/docker.sock
    # Should show the socket file is readable
    ```
 
 2. Test Docker access from inside the container:
    ```bash
-   docker exec hbc-lobby bash /app/bin/docker-cli-wrapper.sh ps
+   docker exec gestures-lobby bash /app/bin/docker-cli-wrapper.sh ps
    # Should list running game session containers
    ```
 
 3. Check the game session image exists:
    ```bash
-   docker images | grep hbc-game-session
+   docker images | grep blocks-cannons-game-session
    ```
 
 4. Verify the config file is in the correct location (if game server fails to start):
    ```bash
-   docker exec hbc-session-<sessionid> ls -la /app/config/game.yaml
+   docker exec session-blocks-cannons-<sessionid> ls -la /app/config/game.yaml
    # Should show the config file exists
    ```
 
@@ -228,12 +230,12 @@ After deployment, verify everything works:
 
 1. Check the container is running:
    ```bash
-   docker ps | grep hbc-session
+   docker ps | grep session-blocks-cannons
    ```
 
 2. Check container logs:
    ```bash
-   docker logs hbc-session-<sessionid>
+   docker logs session-blocks-cannons-<sessionid>
    ```
 
 3. Verify Traefik picked up the container (check Traefik dashboard or logs).
@@ -244,17 +246,17 @@ After deployment, verify everything works:
 
 1. Check nginx is running inside the game container:
    ```bash
-   docker exec hbc-session-<sessionid> ps aux | grep nginx
+   docker exec session-blocks-cannons-<sessionid> ps aux | grep nginx
    ```
 
 2. Check the game server is running:
    ```bash
-   docker exec hbc-session-<sessionid> ps aux | grep node
+   docker exec session-blocks-cannons-<sessionid> ps aux | grep node
    ```
 
 3. Check nginx logs:
    ```bash
-   docker exec hbc-session-<sessionid> cat /var/log/nginx/error.log
+   docker exec session-blocks-cannons-<sessionid> cat /var/log/nginx/error.log
    ```
 
 ## Architecture
@@ -291,8 +293,8 @@ After deployment, verify everything works:
 ## Security Notes
 
 - The `docker-cli-wrapper.sh` script restricts Docker access to only the commands needed
-- Container names must match `hbc-session-*` pattern
-- Only the `hbc-game-session` image can be run
+- Container names must match `session-*` pattern
+- Only app-specific game session images can be run (e.g., `blocks-cannons-game-session`)
 - The wrapper script validates all commands before execution (this is the primary security mechanism)
 - Game sessions are isolated in their own containers
 - The lobby container runs as root to access the Docker socket, but the wrapper script provides command restrictions

@@ -4,7 +4,11 @@ import type { GameSession, OpponentType, SessionStatus } from '../types.js';
  * Configuration for session URL generation.
  */
 export interface SessionStoreConfig {
-  /** Base domain for session URLs (e.g., 'dx-tooling.org') */
+  /**
+   * Base domain for session URLs.
+   * Sessions are hosted at: {sessionId}-{appId}-gestures.{baseDomain}
+   * Example: xf46zra-blocks-cannons-gestures.dx-tooling.org
+   */
   baseDomain: string;
 }
 
@@ -45,10 +49,11 @@ export class SessionStore {
 
   /**
    * Generate the game URL for a session.
-   * Format: https://{sessionId}-{appId}.{baseDomain}
+   * Format: https://{sessionId}-{appId}-gestures.{baseDomain}
+   * Example: https://xf46zra-blocks-cannons-gestures.dx-tooling.org
    */
   private generateGameUrl(sessionId: string, appId: string): string {
-    return `https://${sessionId}-${appId}.${this.config.baseDomain}`;
+    return `https://${sessionId}-${appId}-gestures.${this.config.baseDomain}`;
   }
 
   /**

@@ -13,7 +13,11 @@ export interface DockerSpawnerConfig {
   baseImageName: string;
   /** Docker network name */
   network: string;
-  /** Base domain for routing */
+  /**
+   * Base domain for routing.
+   * Containers are hosted at: {sessionId}-{appId}-gestures.{baseDomain}
+   * Example: xf46zra-blocks-cannons-gestures.dx-tooling.org
+   */
   baseDomain: string;
 }
 
@@ -61,7 +65,7 @@ export class DockerSpawner {
     botDifficulty = 0.5
   ): Promise<void> {
     const containerName = `session-${appId}-${sessionId}`;
-    const hostname = `${sessionId}-${appId}.${this.config.baseDomain}`;
+    const hostname = `${sessionId}-${appId}-gestures.${this.config.baseDomain}`;
     const routerName = `session-${appId}-${sessionId}`;
     const imageName = this.getImageName(appId);
 
